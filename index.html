@@ -21,7 +21,7 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
 .site-header h1{font-size:18px;font-weight:700;letter-spacing:1px}
 .site-header p{font-size:12px;opacity:.8;margin-top:2px}
 .container{max-width:780px;margin:0 auto;padding:16px}
-#toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#333;color:#fff;padding:16px 28px;border-radius:12px;font-size:15px;z-index:9999;display:none;box-shadow:0 8px 32px rgba(0,0,0,.25);max-width:85vw;text-align:center;line-height:1.6}
+#toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#333;color:#fff;padding:16px 28px;border-radius:12px;font-size:15px;z-index:99999;display:none;box-shadow:0 8px 32px rgba(0,0,0,.5);max-width:85vw;text-align:center;line-height:1.6;pointer-events:none}
 #toast.success{background:var(--success)}#toast.error{background:var(--danger)}#toast.warning{background:var(--warning)}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;align-items:center;justify-content:center;padding:16px}
 .modal-overlay.show{display:flex}
@@ -345,7 +345,7 @@ function normTime(t){
 function buildTimeOpts(sel, includeEmpty){
   var o = includeEmpty ? '<option value="">── 請選擇 ──</option>' : '';
   for(var h=0;h<24;h++){
-    for(var m=0;m<60;m+=5){
+    for(var m=0;m<60;m+=30){
       var v=pad(h)+':'+pad(m);
       o+='<option value="'+v+'"'+(v===sel?' selected':'')+'>'+( h<12?'上午 ':'下午 ')+pad(h)+':'+pad(m)+'</option>';
     }
@@ -410,16 +410,24 @@ function init(){
   document.getElementById('f_ret_date').value  = today;
   document.getElementById('view_date').value   = today;
   document.getElementById('s_date').value      = today;
-  var now = new Date(), rm = Math.round(now.getMinutes()/5)*5;
+  var now = new Date(), rm = Math.round(now.getMinutes()/30)*30;
   if(rm===60){ now.setHours(now.getHours()+1); rm=0; }
   var ct = pad(now.getHours())+':'+pad(rm);
   document.getElementById('f_out_time').innerHTML = buildTimeOpts(ct, false);
   document.getElementById('f_ret_time').innerHTML = buildTimeOpts('', true);
   updateTodayBtn();
+
+  // ── 步驟1：先從 localStorage 快取快顯，讓使用者立即看到資料 ──
   loadLocal();
   renderMemberSelect(); renderDeptSelect(); renderPlateSelect();
-  renderRecords();
-  showLoading(true);
+  if(records.length > 0){
+    renderRecords(); // 先顯示舊資料
+  }
+
+  // ── 步驟2：背景同步最新雲端資料 ──
+  var isFirstLoad = records.length === 0;
+  if(isFirstLoad) showLoading(true);
+
   api({action:'getMeta'}, function(d){
     if(d && d.ok){
       if(d.meta.members && d.meta.members.length) members = d.meta.members;
@@ -433,24 +441,36 @@ function init(){
       if(document.getElementById('f_name').value) autoFillDept();
     }
     api({action:'getRecords'}, function(r){
+      var updated = false;
       if(r && r.ok){
-        records = r.records.map(function(rec){
+        var newRecs = r.records.map(function(rec){
           rec.outDate = normDate(rec.outDate); rec.retDate = normDate(rec.retDate);
           rec.outTime = normTime(rec.outTime); rec.retTime = normTime(rec.retTime);
           return rec;
         });
-      } else { showToast('雲端連線失敗，顯示本機快取資料','warning'); }
+        // 只有資料有變動才重新渲染，避免閃爍
+        if(JSON.stringify(newRecs) !== JSON.stringify(records)){
+          records = newRecs;
+          updated = true;
+        }
+      } else {
+        showToast('雲端連線失敗，顯示本機快取資料','warning');
+      }
       api({action:'getMaint'}, function(m){
         showLoading(false);
         if(m && m.ok){
-          maintRecords = m.records.map(function(mr){
+          var newMaint = m.records.map(function(mr){
             mr.date = normDate(mr.date); mr.nextDate = normDate(mr.nextDate); return mr;
           });
+          if(JSON.stringify(newMaint) !== JSON.stringify(maintRecords)){
+            maintRecords = newMaint;
+            updated = true;
+          }
         }
         saveLocal();
         document.getElementById('view_date').value = today;
-        renderRecords();
-        checkUnpaidReminder();
+        if(isFirstLoad || updated) renderRecords();
+        if(isFirstLoad) checkUnpaidReminder();
       });
     });
   });
@@ -592,10 +612,10 @@ function checkAdmin(){
 
 /* ── Form ── */
 function genId(outDate){
-  var p=outDate.split('-'), prefix='BS'+p[1]+p[2];
+  var p=outDate.split('-'), prefix='BS'+p[0].slice(2)+p[1]+p[2];
   var seq=records.filter(function(r){ return r.id&&r.id.indexOf(prefix)===0; }).length+1;
-  var id=prefix+String(seq).padStart(3,'0');
-  while(records.some(function(r){ return r.id===id; })){ seq++; id=prefix+String(seq).padStart(3,'0'); }
+  var id=prefix+String(seq).padStart(2,'0');
+  while(records.some(function(r){ return r.id===id; })){ seq++; id=prefix+String(seq).padStart(2,'0'); }
   return id;
 }
 function findConflict(plate,od,ot,rd,rt,excId){
