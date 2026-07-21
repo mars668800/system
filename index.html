@@ -23,10 +23,8 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
 .container{max-width:780px;margin:0 auto;padding:16px}
 #toast{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#333;color:#fff;padding:16px 28px;border-radius:12px;font-size:15px;z-index:99999;display:none;box-shadow:0 8px 32px rgba(0,0,0,.5);max-width:85vw;text-align:center;line-height:1.6;pointer-events:none}
 #toast.success{background:var(--success)}#toast.error{background:var(--danger)}#toast.warning{background:var(--warning)}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;align-items:center;justify-content:center;padding:16px}
-.modal-overlay.show{display:flex}
-#editModal{z-index:700}
-#deleteModal{z-index:700}
+.overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;align-items:center;justify-content:center;padding:16px}
+.overlay.show{display:flex}
 .modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
 .modal-wide{max-width:560px}
 .modal h3{font-size:17px;color:var(--primary);margin-bottom:16px}
@@ -69,6 +67,7 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
 .status-tag{display:inline-block;padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;color:#fff}
 .status-out{background:var(--warning)}.status-return{background:var(--success)}.status-pending{background:var(--muted)}
 .status-unpaid{background:var(--danger);animation:blink 1.2s step-start infinite}
+.status-cancel{background:#9e9e9e}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 .record-id-tag{font-size:11px;color:var(--muted);font-weight:600}
 .record-expand{font-size:18px;color:var(--muted);transition:transform .2s}
@@ -197,7 +196,7 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
         <input type="text" id="s_name" placeholder="依姓名搜尋">
         <input type="text" id="s_dept" placeholder="依部門搜尋">
         <input type="date" id="s_date">
-        <select id="s_status"><option value="">全部狀態</option><option value="已借用">已借用</option><option value="里程未補登">里程未補登</option></select>
+        <select id="s_status"><option value="">全部狀態</option><option value="已借用">已借用</option><option value="里程未補登">里程未補登</option><option value="取消">取消</option></select>
       </div>
       <div class="admin-btns-row">
         <button class="abtn-search" onclick="applyAdminSearch()">🔍 搜尋</button>
@@ -224,14 +223,12 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
   </div>
 </div>
 
-<!-- Modals -->
-<div class="modal-overlay" id="unpaidModal">
-  <div class="modal modal-wide"><h3>⚠️ 車輛里程尚未補登</h3><p style="font-size:14px;color:var(--muted);margin-bottom:14px">以下車輛尚未補登返回里程，請盡快補登。點擊項目可直接跳至該筆紀錄。</p><div class="unpaid-list" id="unpaidList"></div><div class="modal-btns" style="margin-top:16px"><button class="btn-mcancel" onclick="closeModal('unpaidModal')">我知道了</button></div></div>
-</div>
-<div class="modal-overlay" id="adminModal">
-  <div class="modal"><h3>🔐 管理者驗證</h3><input type="password" id="adminPwd" placeholder="請輸入管理密碼" onkeydown="if(event.key==='Enter')checkAdmin()"><div class="modal-btns"><button class="btn-mcancel" onclick="closeModal('adminModal')">取消</button><button class="btn-mconfirm" onclick="checkAdmin()">確認</button></div></div>
-</div>
-<div class="modal-overlay" id="editModal">
+<!-- ════ Modals ════ -->
+<div class="overlay" id="ov_unpaid"><div class="modal modal-wide"><h3>⚠️ 車輛里程尚未補登</h3><p style="font-size:14px;color:var(--muted);margin-bottom:14px">以下車輛尚未補登返回里程，請盡快補登。點擊項目可直接跳至該筆紀錄。</p><div class="unpaid-list" id="unpaidList"></div><div class="modal-btns" style="margin-top:16px"><button class="btn-mcancel" onclick="closeOv('ov_unpaid')">我知道了</button></div></div></div>
+
+<div class="overlay" id="ov_admin"><div class="modal"><h3>🔐 管理者驗證</h3><input type="password" id="adminPwd" placeholder="請輸入管理密碼" onkeydown="if(event.key==='Enter')checkAdmin()"><div class="modal-btns"><button class="btn-mcancel" onclick="closeOv('ov_admin')">取消</button><button class="btn-mconfirm" onclick="checkAdmin()">確認</button></div></div></div>
+
+<div class="overlay" id="ov_edit" style="z-index:700">
   <div class="modal">
     <h3>📝 補登返回資訊</h3>
     <input type="hidden" id="edit_id">
@@ -241,60 +238,73 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
     <input type="number" id="edit_odo_out" placeholder="出發里程數">
     <label class="modal-label">返回里程數（km）</label>
     <input type="number" id="edit_odo_ret" placeholder="返回里程數">
-    <div class="modal-btns"><button class="btn-mcancel" onclick="closeModal('editModal')">取消</button><button class="btn-mconfirm" onclick="saveEdit()">儲存</button></div>
+    <div class="modal-btns"><button class="btn-mcancel" onclick="closeOv('ov_edit')">取消</button><button class="btn-mconfirm" onclick="saveEdit()">儲存</button></div>
   </div>
 </div>
-<div class="modal-overlay" id="deleteModal">
-  <div class="modal"><h3>🗑️ 確認刪除</h3><p style="margin-bottom:16px;color:var(--muted);font-size:14px">確定要刪除這筆紀錄嗎？此操作無法復原。</p><input type="hidden" id="delete_id"><div class="modal-btns"><button class="btn-mcancel" onclick="closeModal('deleteModal')">取消</button><button class="btn-mdanger" onclick="confirmDelete()">確認刪除</button></div></div>
-</div>
-<div class="modal-overlay" id="clearModal">
-  <div class="modal"><h3>⚠️ 清除全部紀錄</h3><p style="margin-bottom:16px;color:var(--muted);font-size:14px">確定要清除所有登記紀錄嗎？此操作無法復原！</p><div class="modal-btns"><button class="btn-mcancel" onclick="closeModal('clearModal')">取消</button><button class="btn-mdanger" onclick="confirmClear()">全部清除</button></div></div>
-</div>
-<div class="modal-overlay" id="delMemberModal">
-  <div class="modal"><h3>🗑️ 確認移除人員</h3><p style="margin-bottom:16px;color:var(--muted);font-size:14px">確定要移除 <strong id="delMemberName"></strong> 嗎？</p><input type="hidden" id="delMemberIdx"><div class="modal-btns"><button class="btn-mcancel" onclick="closeModal('delMemberModal')">取消</button><button class="btn-mdanger" onclick="confirmDelMember()">確認移除</button></div></div>
-</div>
-<div class="modal-overlay" id="delDeptModal">
-  <div class="modal"><h3>🗑️ 確認移除部門</h3><p style="margin-bottom:16px;color:var(--muted);font-size:14px">確定要移除 <strong id="delDeptName"></strong> 嗎？</p><input type="hidden" id="delDeptIdx"><div class="modal-btns"><button class="btn-mcancel" onclick="closeModal('delDeptModal')">取消</button><button class="btn-mdanger" onclick="confirmDelDept()">確認移除</button></div></div>
-</div>
-<div class="modal-overlay" id="delPlateModal">
-  <div class="modal"><h3>🗑️ 確認移除車牌</h3><p style="margin-bottom:16px;color:var(--muted);font-size:14px">確定要移除車牌 <strong id="delPlateName"></strong> 嗎？</p><input type="hidden" id="delPlateIdx"><div class="modal-btns"><button class="btn-mcancel" onclick="closeModal('delPlateModal')">取消</button><button class="btn-mdanger" onclick="confirmDelPlate()">確認移除</button></div></div>
-</div>
-<div class="modal-overlay" id="vehicleHistoryModal">
-  <div class="modal modal-wide">
-    <h3>🚗 車輛使用歷史紀錄</h3>
-    <select class="vh-select" id="vh_plate" onchange="renderVehicleHistory()"><option value="">── 請選擇車牌 ──</option></select>
-    <div class="vh-tabs" id="vh_tabs" style="display:none">
-      <div class="vh-tab active" id="vhTabUsage" onclick="switchVhTab('usage')">📋 使用紀錄</div>
-      <div class="vh-tab" id="vhTabMaint" onclick="switchVhTab('maint')">🔧 保養資訊</div>
-    </div>
-    <div id="vh_content"></div>
-    <div class="modal-btns" style="margin-top:14px"><button class="btn-mcancel" onclick="closeModal('vehicleHistoryModal')">關閉</button></div>
+
+<div class="overlay" id="ov_cancel" style="z-index:700">
+  <div class="modal">
+    <h3>🚫 取消車輛使用登記</h3>
+    <p style="font-size:14px;color:var(--muted);margin-bottom:12px">請輸入取消原因後，才能確認取消。</p>
+    <input type="hidden" id="cancel_id">
+    <label class="modal-label">取消原因 <span style="color:var(--danger)">*</span></label>
+    <input type="text" id="cancel_reason" placeholder="請輸入取消原因">
+    <div class="modal-btns"><button class="btn-mcancel" onclick="closeOv('ov_cancel')">返回</button><button class="btn-mdanger" onclick="confirmCancel()">確認取消</button></div>
   </div>
 </div>
+
+<div class="overlay" id="ov_delete" style="z-index:700">
+  <div class="modal">
+    <h3>🗑️ 確認刪除</h3>
+    <p style="margin-bottom:16px;color:var(--muted);font-size:14px">確定要刪除這筆紀錄嗎？此操作無法復原。</p>
+    <input type="hidden" id="delete_id">
+    <div class="modal-btns"><button class="btn-mcancel" onclick="closeOv('ov_delete')">取消</button><button class="btn-mdanger" onclick="confirmDelete()">確認刪除</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="ov_clear">
+  <div class="modal"><h3>⚠️ 清除全部紀錄</h3><p style="margin-bottom:16px;color:var(--muted);font-size:14px">確定要清除所有登記紀錄嗎？此操作無法復原！</p><div class="modal-btns"><button class="btn-mcancel" onclick="closeOv('ov_clear')">取消</button><button class="btn-mdanger" onclick="confirmClear()">全部清除</button></div></div>
+</div>
+
+<div class="overlay" id="ov_delMember"><div class="modal"><h3>🗑️ 確認移除人員</h3><p style="margin-bottom:16px;color:var(--muted);font-size:14px">確定要移除 <strong id="delMemberName"></strong> 嗎？</p><input type="hidden" id="delMemberIdx"><div class="modal-btns"><button class="btn-mcancel" onclick="closeOv('ov_delMember')">取消</button><button class="btn-mdanger" onclick="confirmDelMember()">確認移除</button></div></div></div>
+
+<div class="overlay" id="ov_delDept"><div class="modal"><h3>🗑️ 確認移除部門</h3><p style="margin-bottom:16px;color:var(--muted);font-size:14px">確定要移除 <strong id="delDeptName"></strong> 嗎？</p><input type="hidden" id="delDeptIdx"><div class="modal-btns"><button class="btn-mcancel" onclick="closeOv('ov_delDept')">取消</button><button class="btn-mdanger" onclick="confirmDelDept()">確認移除</button></div></div></div>
+
+<div class="overlay" id="ov_delPlate"><div class="modal"><h3>🗑️ 確認移除車牌</h3><p style="margin-bottom:16px;color:var(--muted);font-size:14px">確定要移除車牌 <strong id="delPlateName"></strong> 嗎？</p><input type="hidden" id="delPlateIdx"><div class="modal-btns"><button class="btn-mcancel" onclick="closeOv('ov_delPlate')">取消</button><button class="btn-mdanger" onclick="confirmDelPlate()">確認移除</button></div></div></div>
+
+<div class="overlay" id="ov_vehicle"><div class="modal modal-wide">
+  <h3>🚗 車輛使用歷史紀錄</h3>
+  <select class="vh-select" id="vh_plate" onchange="renderVehicleHistory()"><option value="">── 請選擇車牌 ──</option></select>
+  <div class="vh-tabs" id="vh_tabs" style="display:none">
+    <div class="vh-tab active" id="vhTabUsage" onclick="switchVhTab('usage')">📋 使用紀錄</div>
+    <div class="vh-tab" id="vhTabMaint" onclick="switchVhTab('maint')">🔧 保養資訊</div>
+  </div>
+  <div id="vh_content"></div>
+  <div class="modal-btns" style="margin-top:14px"><button class="btn-mcancel" onclick="closeOv('ov_vehicle')">關閉</button></div>
+</div></div>
+
 <div id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script>
 'use strict';
 
-/* ── 常數 ── */
-var SCRIPT_URL       = 'https://script.google.com/macros/s/AKfycbzCnX-k5K654aOgJWsLbliSt4QhC4iUpMwi8v8G6LWTbwv1g0pF0xkz21WEZGPWjHO4pw/exec';
-var ADMIN_PWD        = '1234';
-var REC_KEY          = 'outing_records_v2';
-var MEM_KEY          = 'outing_members_v1';
-var DEPT_KEY         = 'outing_depts_v1';
-var PLATE_KEY        = 'outing_plates_v1';
-var KEEPER_KEY       = 'outing_plate_keepers_v1';
-var MAINT_KEY        = 'outing_maint_v1';
-var MTYPE_KEY        = 'outing_maint_types_v1';
-var MDEPT_KEY        = 'outing_member_depts_v1';
+var SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbzCnX-k5K654aOgJWsLbliSt4QhC4iUpMwi8v8G6LWTbwv1g0pF0xkz21WEZGPWjHO4pw/exec';
+var ADMIN_PWD   = '1234';
+var REC_KEY     = 'outing_records_v2';
+var MEM_KEY     = 'outing_members_v1';
+var DEPT_KEY    = 'outing_depts_v1';
+var PLATE_KEY   = 'outing_plates_v1';
+var KEEPER_KEY  = 'outing_plate_keepers_v1';
+var MAINT_KEY   = 'outing_maint_v1';
+var MTYPE_KEY   = 'outing_maint_types_v1';
+var MDEPT_KEY   = 'outing_member_depts_v1';
 
-var DEF_MEMBERS     = ['王小明','李小華','張美玲','陳建志','林淑芬','黃國榮','吳怡君','劉志偉'];
-var DEF_DEPTS       = ['總務部','業務部','工程部','行政部','財務部','人資部','資訊部','採購部'];
-var DEF_PLATES      = ['ABC-1234','DEF-5678'];
-var DEF_MTYPES      = ['定期保養','機油更換','輪胎更換','煞車維修','驗車/驗保','其他維修'];
+var DEF_MEMBERS = ['王小明','李小華','張美玲','陳建志','林淑芬','黃國榮','吳怡君','劉志偉'];
+var DEF_DEPTS   = ['總務部','業務部','工程部','行政部','財務部','人資部','資訊部','採購部'];
+var DEF_PLATES  = ['ABC-1234','DEF-5678'];
+var DEF_MTYPES  = ['定期保養','機油更換','輪胎更換','煞車維修','驗車/驗保','其他維修'];
 
-/* ── 狀態 ── */
 var isAdmin      = false;
 var records      = [];
 var members      = [];
@@ -308,217 +318,159 @@ var adminFiltered= null;
 var vhTab        = 'usage';
 var chartInst    = null;
 
-/* ── 工具 ── */
+/* ── Modal helpers ── */
+function openOv(id){ var el=document.getElementById(id); if(el) el.classList.add('show'); }
+function closeOv(id){ var el=document.getElementById(id); if(el) el.classList.remove('show'); }
+
+document.addEventListener('DOMContentLoaded', function(){
+  document.querySelectorAll('.overlay').forEach(function(el){
+    el.addEventListener('click', function(e){
+      if(e.target===el) el.classList.remove('show');
+    });
+  });
+});
+
+/* ── Utils ── */
 function pad(n){ return String(n).padStart(2,'0'); }
 function todayStr(){ return new Date().toISOString().split('T')[0]; }
-function fmtD(d){ return d ? d.replace(/-/g,'/') : '─'; }
-function fmtT(t){ return t || '─'; }
-function fmtDT(d,t){ return d ? fmtD(d)+' '+fmtT(t) : '─'; }
+function fmtD(d){ return d?d.replace(/-/g,'/'):'─'; }
+function fmtT(t){ return t||'─'; }
+function fmtDT(d,t){ return d?fmtD(d)+' '+fmtT(t):'─'; }
 
-function cleanPlate(p){
-  if(!p) return '';
-  return p.replace(/【[^】]*】/g,'').replace(/\s/g,'').trim();
-}
-function matchPlate(a, b){
-  return cleanPlate(a) === cleanPlate(b);
-}
+function cleanPlate(p){ return p?p.replace(/【[^】]*】/g,'').replace(/\s/g,'').trim():''; }
+function matchPlate(a,b){ return cleanPlate(a)===cleanPlate(b); }
 
 function normDate(d){
   if(!d) return '';
-  d = String(d).trim();
+  d=String(d).trim();
   if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
-  var m = d.match(/^(\d{4}-\d{2}-\d{2})T/);
+  var m=d.match(/^(\d{4}-\d{2}-\d{2})T/);
   if(m) return m[1];
-  var p = new Date(d);
+  var p=new Date(d);
   if(!isNaN(p)) return p.getFullYear()+'-'+pad(p.getMonth()+1)+'-'+pad(p.getDate());
   return d;
 }
 function normTime(t){
   if(!t) return '';
-  t = String(t).trim();
+  t=String(t).trim();
   if(/^\d{1,2}:\d{2}$/.test(t)) return t;
-  var p = new Date(t);
+  var p=new Date(t);
   if(!isNaN(p)) return pad(p.getHours())+':'+pad(p.getMinutes());
-  var m = t.match(/(\d{1,2}):(\d{2})/);
+  var m=t.match(/(\d{1,2}):(\d{2})/);
   if(m) return pad(parseInt(m[1]))+':'+m[2];
   return t;
 }
 
 function buildTimeOpts(sel, includeEmpty){
-  var o = includeEmpty ? '<option value="">── 請選擇 ──</option>' : '';
-  for(var h=0;h<24;h++){
-    for(var m=0;m<60;m+=30){
-      var v=pad(h)+':'+pad(m);
-      o+='<option value="'+v+'"'+(v===sel?' selected':'')+'>'+( h<12?'上午 ':'下午 ')+pad(h)+':'+pad(m)+'</option>';
-    }
+  var o=includeEmpty?'<option value="">── 請選擇 ──</option>':'';
+  for(var h=0;h<24;h++) for(var m=0;m<60;m+=30){
+    var v=pad(h)+':'+pad(m);
+    o+='<option value="'+v+'"'+(v===sel?' selected':'')+'>'+( h<12?'上午 ':'下午 ')+pad(h)+':'+pad(m)+'</option>';
   }
   return o;
 }
 
 /* ── API ── */
-function api(params, cb){
-  var url = SCRIPT_URL+'?'+Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+function api(params,cb){
+  var url=SCRIPT_URL+'?'+Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
   fetch(url).then(function(r){ return r.json(); }).then(function(d){ if(cb) cb(d); }).catch(function(){ if(cb) cb(null); });
 }
 
-/* ── 本機存取 ── */
+/* ── Storage ── */
 function loadLocal(){
   function get(k,def){ try{ var v=JSON.parse(localStorage.getItem(k)); return v||def; }catch(e){ return def; } }
-  records      = get(REC_KEY,   []);
-  members      = get(MEM_KEY,   DEF_MEMBERS.slice());
-  depts        = get(DEPT_KEY,  DEF_DEPTS.slice());
-  plates       = get(PLATE_KEY, DEF_PLATES.slice());
-  keepers      = get(KEEPER_KEY,{});
-  maintRecords = get(MAINT_KEY, []);
-  var mt = get(MTYPE_KEY, null);
-  if(mt && mt.length) maintTypes = mt;
-  memberDepts = {};
+  records=get(REC_KEY,[]); members=get(MEM_KEY,DEF_MEMBERS.slice()); depts=get(DEPT_KEY,DEF_DEPTS.slice());
+  plates=get(PLATE_KEY,DEF_PLATES.slice()); keepers=get(KEEPER_KEY,{}); maintRecords=get(MAINT_KEY,[]);
+  var mt=get(MTYPE_KEY,null); if(mt&&mt.length) maintTypes=mt;
+  memberDepts={};
 }
 function saveLocal(){
-  localStorage.setItem(REC_KEY,   JSON.stringify(records));
-  localStorage.setItem(MEM_KEY,   JSON.stringify(members));
-  localStorage.setItem(DEPT_KEY,  JSON.stringify(depts));
-  localStorage.setItem(PLATE_KEY, JSON.stringify(plates));
+  localStorage.setItem(REC_KEY,JSON.stringify(records));
+  localStorage.setItem(MEM_KEY,JSON.stringify(members));
+  localStorage.setItem(DEPT_KEY,JSON.stringify(depts));
+  localStorage.setItem(PLATE_KEY,JSON.stringify(plates));
   localStorage.setItem(KEEPER_KEY,JSON.stringify(keepers));
-  localStorage.setItem(MAINT_KEY, JSON.stringify(maintRecords));
-  localStorage.setItem(MTYPE_KEY, JSON.stringify(maintTypes));
-  localStorage.setItem(MDEPT_KEY, JSON.stringify(memberDepts));
+  localStorage.setItem(MAINT_KEY,JSON.stringify(maintRecords));
+  localStorage.setItem(MTYPE_KEY,JSON.stringify(maintTypes));
+  localStorage.setItem(MDEPT_KEY,JSON.stringify(memberDepts));
 }
 function saveMeta(){
   saveLocal();
-  api({action:'saveMeta', data:JSON.stringify({
-    members:members, depts:depts, plates:plates,
-    plateKeepers:keepers, maintTypes:maintTypes, memberDepts:memberDepts
-  })}, null);
+  api({action:'saveMeta',data:JSON.stringify({members:members,depts:depts,plates:plates,plateKeepers:keepers,maintTypes:maintTypes,memberDepts:memberDepts})},null);
 }
 
-/* ── UI helpers ── */
+/* ── UI ── */
 function showLoading(on){
-  document.getElementById('loadingBar').style.display = on?'block':'none';
-  var ov = document.getElementById('loadingOverlay');
-  on ? ov.classList.add('show') : ov.classList.remove('show');
+  document.getElementById('loadingBar').style.display=on?'block':'none';
+  var ov=document.getElementById('loadingOverlay');
+  on?ov.classList.add('show'):ov.classList.remove('show');
 }
-function showToast(msg, type){
-  var t = document.getElementById('toast');
+function showToast(msg,type){
+  var t=document.getElementById('toast');
   t.textContent=msg; t.className=type||'success'; t.style.display='block';
-  clearTimeout(t._t); t._t=setTimeout(function(){ t.style.display='none'; }, 3200);
+  clearTimeout(t._t); t._t=setTimeout(function(){ t.style.display='none'; },3200);
 }
-function closeModal(id){ document.getElementById(id).classList.remove('show'); }
 
 /* ── INIT ── */
 function init(){
-  var today = todayStr();
-  document.getElementById('f_out_date').value = today;
-  document.getElementById('f_ret_date').value  = today;
-  document.getElementById('view_date').value   = today;
-  document.getElementById('s_date').value      = today;
-  var now = new Date(), rm = Math.round(now.getMinutes()/30)*30;
-  if(rm===60){ now.setHours(now.getHours()+1); rm=0; }
-  var ct = pad(now.getHours())+':'+pad(rm);
-  document.getElementById('f_out_time').innerHTML = buildTimeOpts(ct, false);
-  document.getElementById('f_ret_time').innerHTML = buildTimeOpts('', true);
-  updateTodayBtn();
-
-  // ── 步驟1：先從 localStorage 快取快顯，讓使用者立即看到資料 ──
-  loadLocal();
+  var today=todayStr();
+  document.getElementById('f_out_date').value=today;
+  document.getElementById('f_ret_date').value=today;
+  document.getElementById('view_date').value=today;
+  document.getElementById('s_date').value=today;
+  var now=new Date(),rm=Math.round(now.getMinutes()/30)*30;
+  if(rm===60){now.setHours(now.getHours()+1);rm=0;}
+  var ct=pad(now.getHours())+':'+pad(rm);
+  document.getElementById('f_out_time').innerHTML=buildTimeOpts(ct,false);
+  document.getElementById('f_ret_time').innerHTML=buildTimeOpts('',true);
+  updateTodayBtn(); loadLocal();
   renderMemberSelect(); renderDeptSelect(); renderPlateSelect();
-  if(records.length > 0){
-    renderRecords(); // 先顯示舊資料
-  }
-
-  // ── 步驟2：背景同步最新雲端資料 ──
-  var isFirstLoad = records.length === 0;
-  if(isFirstLoad) showLoading(true);
-
-  api({action:'getMeta'}, function(d){
-    if(d && d.ok){
-      if(d.meta.members && d.meta.members.length) members = d.meta.members;
-      if(d.meta.depts   && d.meta.depts.length)   depts   = d.meta.depts;
-      if(d.meta.plates  && d.meta.plates.length)   plates  = d.meta.plates;
-      if(d.meta.maintTypes && d.meta.maintTypes.length) maintTypes = d.meta.maintTypes;
-      if(d.meta.plateKeepers) keepers = d.meta.plateKeepers;
-      memberDepts = d.meta.memberDepts || {};
-      localStorage.setItem(MDEPT_KEY, JSON.stringify(memberDepts));
+  renderRecords();
+  var isFirst=records.length===0;
+  if(isFirst) showLoading(true);
+  api({action:'getMeta'},function(d){
+    if(d&&d.ok){
+      if(d.meta.members&&d.meta.members.length) members=d.meta.members;
+      if(d.meta.depts&&d.meta.depts.length) depts=d.meta.depts;
+      if(d.meta.plates&&d.meta.plates.length) plates=d.meta.plates;
+      if(d.meta.maintTypes&&d.meta.maintTypes.length) maintTypes=d.meta.maintTypes;
+      if(d.meta.plateKeepers) keepers=d.meta.plateKeepers;
+      memberDepts=d.meta.memberDepts||{};
+      localStorage.setItem(MDEPT_KEY,JSON.stringify(memberDepts));
       renderMemberSelect(); renderDeptSelect(); renderPlateSelect();
       if(document.getElementById('f_name').value) autoFillDept();
     }
-    api({action:'getRecords'}, function(r){
-      var updated = false;
-      if(r && r.ok){
-        var newRecs = r.records.map(function(rec){
-          rec.outDate = normDate(rec.outDate); rec.retDate = normDate(rec.retDate);
-          rec.outTime = normTime(rec.outTime); rec.retTime = normTime(rec.retTime);
-          return rec;
-        });
-        // 只有資料有變動才重新渲染，避免閃爍
-        if(JSON.stringify(newRecs) !== JSON.stringify(records)){
-          records = newRecs;
-          updated = true;
-        }
-      } else {
-        showToast('雲端連線失敗，顯示本機快取資料','warning');
-      }
-      api({action:'getMaint'}, function(m){
+    api({action:'getRecords'},function(r){
+      var updated=false;
+      if(r&&r.ok){
+        var nr=r.records.map(function(rec){ rec.outDate=normDate(rec.outDate); rec.retDate=normDate(rec.retDate); rec.outTime=normTime(rec.outTime); rec.retTime=normTime(rec.retTime); return rec; });
+        if(JSON.stringify(nr)!==JSON.stringify(records)){ records=nr; updated=true; }
+      } else { showToast('雲端連線失敗，顯示本機快取資料','warning'); }
+      api({action:'getMaint'},function(m){
         showLoading(false);
-        if(m && m.ok){
-          var newMaint = m.records.map(function(mr){
-            mr.date = normDate(mr.date); mr.nextDate = normDate(mr.nextDate); return mr;
-          });
-          if(JSON.stringify(newMaint) !== JSON.stringify(maintRecords)){
-            maintRecords = newMaint;
-            updated = true;
-          }
-        }
+        if(m&&m.ok){ var nm=m.records.map(function(mr){ mr.date=normDate(mr.date); mr.nextDate=normDate(mr.nextDate); return mr; }); if(JSON.stringify(nm)!==JSON.stringify(maintRecords)){ maintRecords=nm; updated=true; } }
         saveLocal();
-        document.getElementById('view_date').value = today;
-        if(isFirstLoad || updated) renderRecords();
-        if(isFirstLoad) checkUnpaidReminder();
+        document.getElementById('view_date').value=today;
+        if(isFirst||updated) renderRecords();
+        if(isFirst) checkUnpaidReminder();
       });
     });
   });
 }
 
-function updateTodayBtn(){
-  var now = new Date();
-  document.getElementById('todayBtn').textContent = '今天 '+(now.getMonth()+1)+'/'+now.getDate();
-}
-function goToday(){ document.getElementById('view_date').value = todayStr(); renderRecords(); }
+function updateTodayBtn(){ var now=new Date(); document.getElementById('todayBtn').textContent='今天 '+(now.getMonth()+1)+'/'+now.getDate(); }
+function goToday(){ document.getElementById('view_date').value=todayStr(); renderRecords(); }
 
 /* ── Selects ── */
-function renderMemberSelect(){
-  var sel=document.getElementById('f_name'), cur=sel.value;
-  sel.innerHTML='<option value="">── 請選擇 ──</option>';
-  members.forEach(function(m){ var o=document.createElement('option'); o.value=o.textContent=m; if(m===cur) o.selected=true; sel.appendChild(o); });
-}
-function renderDeptSelect(){
-  var sel=document.getElementById('f_dept'), cur=sel.value;
-  sel.innerHTML='<option value="">── 請選擇 ──</option>';
-  depts.forEach(function(d){ var o=document.createElement('option'); o.value=o.textContent=d; if(d===cur) o.selected=true; sel.appendChild(o); });
-}
-function renderPlateSelect(){
-  var sel=document.getElementById('f_plate'), cur=sel.value;
-  sel.innerHTML='<option value="">── 請選擇車牌 ──</option>';
-  plates.forEach(function(p){ var o=document.createElement('option'); o.value=o.textContent=p; if(p===cur) o.selected=true; sel.appendChild(o); });
-}
-function autoFillDept(){
-  var name=document.getElementById('f_name').value;
-  if(!name) return;
-  var dept=memberDepts[name]||'';
-  if(!dept) return;
-  var sel=document.getElementById('f_dept');
-  for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===dept){ sel.value=dept; return; } }
-}
-function autoFillOdo(){
-  var plate=cleanPlate(document.getElementById('f_plate').value);
-  if(!plate){ document.getElementById('f_odo_out').value=''; return; }
-  var list=records.filter(function(r){ return matchPlate(r.plate,plate)&&r.odoRet; })
-    .sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); });
-  document.getElementById('f_odo_out').value = list.length ? list[0].odoRet : '';
-}
+function renderMemberSelect(){ var sel=document.getElementById('f_name'),cur=sel.value; sel.innerHTML='<option value="">── 請選擇 ──</option>'; members.forEach(function(m){ var o=document.createElement('option'); o.value=o.textContent=m; if(m===cur) o.selected=true; sel.appendChild(o); }); }
+function renderDeptSelect(){ var sel=document.getElementById('f_dept'),cur=sel.value; sel.innerHTML='<option value="">── 請選擇 ──</option>'; depts.forEach(function(d){ var o=document.createElement('option'); o.value=o.textContent=d; if(d===cur) o.selected=true; sel.appendChild(o); }); }
+function renderPlateSelect(){ var sel=document.getElementById('f_plate'),cur=sel.value; sel.innerHTML='<option value="">── 請選擇車牌 ──</option>'; plates.forEach(function(p){ var o=document.createElement('option'); o.value=o.textContent=p; if(p===cur) o.selected=true; sel.appendChild(o); }); }
+function autoFillDept(){ var name=document.getElementById('f_name').value,dept=memberDepts[name]||''; if(!dept) return; var sel=document.getElementById('f_dept'); for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===dept){ sel.value=dept; return; } } }
+function autoFillOdo(){ var plate=cleanPlate(document.getElementById('f_plate').value); if(!plate){ document.getElementById('f_odo_out').value=''; return; } var list=records.filter(function(r){ return matchPlate(r.plate,plate)&&r.odoRet; }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); }); document.getElementById('f_odo_out').value=list.length?list[0].odoRet:''; }
 
-/* ── Drag & Drop ── */
-function makeDraggable(listId, arr, afterDrop){
-  var el=document.getElementById(listId), dragged=null;
+/* ── Drag ── */
+function makeDraggable(listId,arr,afterDrop){
+  var el=document.getElementById(listId),dragged=null;
   el.querySelectorAll('.member-item').forEach(function(item){
     item.setAttribute('draggable','true');
     item.addEventListener('dragstart',function(){ dragged=item; setTimeout(function(){ item.classList.add('dragging'); },0); });
@@ -536,23 +488,13 @@ function syncOrder(el,arr){ var o=[]; el.querySelectorAll('.member-item').forEac
 function renderMemberList(){
   var el=document.getElementById('memberList');
   if(!members.length){ el.innerHTML='<div class="member-empty">尚無人員，請新增</div>'; return; }
-  el.innerHTML=members.map(function(m,i){
-    var dept=memberDepts[m]||'';
-    return '<div class="member-item" data-name="'+m+'"><span class="drag-handle">⠿</span>'
-      +'<div style="flex:1;min-width:0"><div class="member-name">'+m+'</div>'
-      +'<div style="display:flex;align-items:center;gap:6px;margin-top:5px"><span style="font-size:12px;color:var(--muted);white-space:nowrap">部門：</span>'
-      +'<select style="font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;flex:1;font-family:inherit" onchange="saveMemberDept(\''+m+'\',this.value)">'
-      +'<option value="">── 請選擇 ──</option>'
-      +depts.map(function(d){ return '<option value="'+d+'"'+(d===dept?' selected':'')+'>'+d+'</option>'; }).join('')
-      +'</select></div></div>'
-      +'<button class="member-del" style="margin-left:10px" onclick="openDelMember('+i+')">移除</button></div>';
-  }).join('');
+  el.innerHTML=members.map(function(m,i){ var dept=memberDepts[m]||''; return '<div class="member-item" data-name="'+m+'"><span class="drag-handle">⠿</span><div style="flex:1;min-width:0"><div class="member-name">'+m+'</div><div style="display:flex;align-items:center;gap:6px;margin-top:5px"><span style="font-size:12px;color:var(--muted);white-space:nowrap">部門：</span><select style="font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;flex:1;font-family:inherit" onchange="saveMemberDept(\''+m+'\',this.value)"><option value="">── 請選擇 ──</option>'+depts.map(function(d){ return '<option value="'+d+'"'+(d===dept?' selected':'')+'>'+d+'</option>'; }).join('')+'</select></div></div><button class="member-del" style="margin-left:10px" onclick="openDelMember('+i+')">移除</button></div>'; }).join('');
   makeDraggable('memberList',members,function(){ renderMemberSelect(); saveMeta(); });
 }
 function saveMemberDept(name,dept){ if(dept) memberDepts[name]=dept; else delete memberDepts[name]; saveMeta(); }
 function addMember(){ var inp=document.getElementById('newMemberName'),n=inp.value.trim(); if(!n){ showToast('請輸入人員姓名','error'); return; } if(members.indexOf(n)>=0){ showToast('此人員已存在','warning'); return; } members.push(n); renderMemberSelect(); renderMemberList(); saveMeta(); inp.value=''; showToast('已新增 '+n); }
-function openDelMember(i){ document.getElementById('delMemberIdx').value=i; document.getElementById('delMemberName').textContent=members[i]; document.getElementById('delMemberModal').classList.add('show'); }
-function confirmDelMember(){ var i=parseInt(document.getElementById('delMemberIdx').value),n=members[i]; members.splice(i,1); delete memberDepts[n]; renderMemberSelect(); renderMemberList(); saveMeta(); closeModal('delMemberModal'); showToast('已移除 '+n,'warning'); }
+function openDelMember(i){ document.getElementById('delMemberIdx').value=i; document.getElementById('delMemberName').textContent=members[i]; openOv('ov_delMember'); }
+function confirmDelMember(){ var i=parseInt(document.getElementById('delMemberIdx').value),n=members[i]; members.splice(i,1); delete memberDepts[n]; renderMemberSelect(); renderMemberList(); saveMeta(); closeOv('ov_delMember'); showToast('已移除 '+n,'warning'); }
 
 /* ── Depts ── */
 function renderDeptList(){
@@ -562,30 +504,20 @@ function renderDeptList(){
   makeDraggable('deptList',depts,function(){ renderDeptSelect(); saveMeta(); });
 }
 function addDept(){ var inp=document.getElementById('newDeptName'),n=inp.value.trim(); if(!n){ showToast('請輸入部門名稱','error'); return; } if(depts.indexOf(n)>=0){ showToast('此部門已存在','warning'); return; } depts.push(n); renderDeptSelect(); renderDeptList(); saveMeta(); inp.value=''; showToast('已新增 '+n); }
-function openDelDept(i){ document.getElementById('delDeptIdx').value=i; document.getElementById('delDeptName').textContent=depts[i]; document.getElementById('delDeptModal').classList.add('show'); }
-function confirmDelDept(){ var i=parseInt(document.getElementById('delDeptIdx').value),n=depts[i]; depts.splice(i,1); renderDeptSelect(); renderDeptList(); saveMeta(); closeModal('delDeptModal'); showToast('已移除 '+n,'warning'); }
+function openDelDept(i){ document.getElementById('delDeptIdx').value=i; document.getElementById('delDeptName').textContent=depts[i]; openOv('ov_delDept'); }
+function confirmDelDept(){ var i=parseInt(document.getElementById('delDeptIdx').value),n=depts[i]; depts.splice(i,1); renderDeptSelect(); renderDeptList(); saveMeta(); closeOv('ov_delDept'); showToast('已移除 '+n,'warning'); }
 
 /* ── Plates ── */
 function renderPlateList(){
   var el=document.getElementById('plateList');
   if(!plates.length){ el.innerHTML='<div class="member-empty">尚無車牌，請新增</div>'; return; }
-  el.innerHTML=plates.map(function(p,i){
-    var k=keepers[p]||'';
-    return '<div class="member-item" data-name="'+p+'"><span class="drag-handle">⠿</span>'
-      +'<div style="flex:1;min-width:0"><div class="member-name">'+p+'</div>'
-      +'<div style="display:flex;align-items:center;gap:6px;margin-top:5px"><span style="font-size:12px;color:var(--muted);white-space:nowrap">保管人：</span>'
-      +'<select style="font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;flex:1;font-family:inherit" onchange="saveKeeper(\''+p+'\',this.value)">'
-      +'<option value="">── 請選擇 ──</option>'
-      +members.map(function(m){ return '<option value="'+m+'"'+(m===k?' selected':'')+'>'+m+'</option>'; }).join('')
-      +'</select></div></div>'
-      +'<button class="member-del" style="margin-left:10px" onclick="openDelPlate('+i+')">移除</button></div>';
-  }).join('');
+  el.innerHTML=plates.map(function(p,i){ var k=keepers[p]||''; return '<div class="member-item" data-name="'+p+'"><span class="drag-handle">⠿</span><div style="flex:1;min-width:0"><div class="member-name">'+p+'</div><div style="display:flex;align-items:center;gap:6px;margin-top:5px"><span style="font-size:12px;color:var(--muted);white-space:nowrap">保管人：</span><select style="font-size:13px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;flex:1;font-family:inherit" onchange="saveKeeper(\''+p+'\',this.value)"><option value="">── 請選擇 ──</option>'+members.map(function(m){ return '<option value="'+m+'"'+(m===k?' selected':'')+'>'+m+'</option>'; }).join('')+'</select></div></div><button class="member-del" style="margin-left:10px" onclick="openDelPlate('+i+')">移除</button></div>'; }).join('');
   makeDraggable('plateList',plates,function(){ renderPlateSelect(); saveMeta(); });
 }
 function saveKeeper(plate,name){ if(name) keepers[plate]=name; else delete keepers[plate]; saveMeta(); }
 function addPlate(){ var inp=document.getElementById('newPlateName'),n=inp.value.trim().toUpperCase(); if(!n){ showToast('請輸入車牌號碼','error'); return; } if(plates.indexOf(n)>=0){ showToast('此車牌已存在','warning'); return; } plates.push(n); renderPlateSelect(); renderPlateList(); saveMeta(); inp.value=''; showToast('已新增車牌 '+n); }
-function openDelPlate(i){ document.getElementById('delPlateIdx').value=i; document.getElementById('delPlateName').textContent=plates[i]; document.getElementById('delPlateModal').classList.add('show'); }
-function confirmDelPlate(){ var i=parseInt(document.getElementById('delPlateIdx').value),n=plates[i]; plates.splice(i,1); renderPlateSelect(); renderPlateList(); saveMeta(); closeModal('delPlateModal'); showToast('已移除車牌 '+n,'warning'); }
+function openDelPlate(i){ document.getElementById('delPlateIdx').value=i; document.getElementById('delPlateName').textContent=plates[i]; openOv('ov_delPlate'); }
+function confirmDelPlate(){ var i=parseInt(document.getElementById('delPlateIdx').value),n=plates[i]; plates.splice(i,1); renderPlateSelect(); renderPlateList(); saveMeta(); closeOv('ov_delPlate'); showToast('已移除車牌 '+n,'warning'); }
 
 /* ── Maint Types ── */
 function renderMaintTypeList(){
@@ -600,12 +532,12 @@ function openDelMaintType(i){ if(!confirm('確定要移除「'+maintTypes[i]+'�
 /* ── Admin ── */
 function toggleAdmin(){
   if(isAdmin){ isAdmin=false; document.getElementById('adminPanel').style.display='none'; adminFiltered=null; showToast('已登出管理者模式','warning'); renderRecords(); }
-  else{ document.getElementById('adminModal').classList.add('show'); setTimeout(function(){ document.getElementById('adminPwd').focus(); },100); }
+  else{ openOv('ov_admin'); setTimeout(function(){ document.getElementById('adminPwd').focus(); },100); }
 }
 function checkAdmin(){
   if(document.getElementById('adminPwd').value===ADMIN_PWD){
     isAdmin=true; document.getElementById('adminPanel').style.display='block';
-    closeModal('adminModal'); document.getElementById('adminPwd').value='';
+    closeOv('ov_admin'); document.getElementById('adminPwd').value='';
     renderMemberList(); renderDeptList(); renderPlateList(); renderMaintTypeList();
     initChartSelectors(); renderChart();
     showToast('已進入管理者模式'); renderRecords();
@@ -614,7 +546,7 @@ function checkAdmin(){
 
 /* ── Form ── */
 function genId(outDate){
-  var p=outDate.split('-'), prefix='BS'+p[0]+p[1]+p[2];
+  var p=outDate.split('-'),prefix='BS'+p[0]+p[1]+p[2];
   var seq=records.filter(function(r){ return r.id&&r.id.indexOf(prefix)===0; }).length+1;
   var id=prefix+String(seq).padStart(2,'0');
   while(records.some(function(r){ return r.id===id; })){ seq++; id=prefix+String(seq).padStart(2,'0'); }
@@ -622,14 +554,9 @@ function genId(outDate){
 }
 function findConflict(plate,od,ot,rd,rt,excId){
   if(!plate) return null;
-  var nO=new Date(od+'T'+ot), nR=rt?new Date(rd+'T'+rt):new Date(rd+'T23:59');
+  var nO=new Date(od+'T'+ot),nR=rt?new Date(rd+'T'+rt):new Date(rd+'T23:59');
   var found=null;
-  records.some(function(r){
-    if(r.id===excId||!matchPlate(r.plate,plate)) return false;
-    var rO=new Date(r.outDate+'T'+r.outTime), rR=r.retTime?new Date(r.retDate+'T'+r.retTime):new Date(r.retDate+'T23:59');
-    if(nO<rR&&nR>rO){ found=r; return true; }
-    return false;
-  });
+  records.some(function(r){ if(r.id===excId||!matchPlate(r.plate,plate)||getStatus(r)==='取消') return false; var rO=new Date(r.outDate+'T'+r.outTime),rR=r.retTime?new Date(r.retDate+'T'+r.retTime):new Date(r.retDate+'T23:59'); if(nO<rR&&nR>rO){ found=r; return true; } return false; });
   return found;
 }
 function submitForm(){
@@ -637,27 +564,21 @@ function submitForm(){
   var ok=true;
   req.forEach(function(id){ var el=document.getElementById(id); el.classList.remove('invalid'); if(!el.value.trim()){ el.classList.add('invalid'); ok=false; } });
   if(!ok){ showToast('請填寫所有必填欄位（紅框處）','error'); return; }
-  var odoOut=document.getElementById('f_odo_out').value, odoRet=document.getElementById('f_odo_ret').value;
-  if(odoOut&&odoRet&&parseFloat(odoRet)<parseFloat(odoOut)){ showToast('⚠️ 返回里程（'+odoRet+' km）不可低於出發里程（'+odoOut+' km）','error'); document.getElementById('f_odo_ret').classList.add('invalid'); return; }
-  var plate=document.getElementById('f_plate').value, outDate=document.getElementById('f_out_date').value;
-  var outTime=document.getElementById('f_out_time').value, retDate=document.getElementById('f_ret_date').value;
-  var retTime=document.getElementById('f_ret_time').value;
+  var odoOut=document.getElementById('f_odo_out').value,odoRet=document.getElementById('f_odo_ret').value;
+  if(odoOut&&odoRet&&parseFloat(odoRet)<parseFloat(odoOut)){ showToast('⚠️ 返回里程不可低於出發里程','error'); document.getElementById('f_odo_ret').classList.add('invalid'); return; }
+  var plate=document.getElementById('f_plate').value,outDate=document.getElementById('f_out_date').value;
+  var outTime=document.getElementById('f_out_time').value,retDate=document.getElementById('f_ret_date').value,retTime=document.getElementById('f_ret_time').value;
   var cf=findConflict(plate,outDate,outTime,retDate,retTime,'');
   if(cf){ showToast('⚠️ 車牌 '+cleanPlate(plate)+' 在此時段已被 '+cf.name+'（'+cf.dept+'）借用','error'); return; }
   var rec={id:genId(outDate),name:document.getElementById('f_name').value,dept:document.getElementById('f_dept').value,outDate:outDate,outTime:outTime,retDate:retDate,retTime:retTime,reason:document.getElementById('f_reason').value.trim(),plate:plate,condition:document.getElementById('f_condition').value,odoOut:odoOut,odoRet:odoRet,note:document.getElementById('f_note').value.trim(),createdAt:new Date().toISOString()};
-  showLoading(true);
-  rec.status=getStatus(rec);
-  api({action:'addRecord',data:JSON.stringify(rec)},function(d){
-    showLoading(false);
-    if(d&&d.ok){ records.unshift(rec); saveLocal(); showToast('✅ 車輛使用登記成功！'); resetForm(); document.getElementById('view_date').value=outDate; renderRecords(); }
-    else{ showToast('雲端儲存失敗，請重試','error'); }
-  });
+  showLoading(true); rec.status=getStatus(rec);
+  api({action:'addRecord',data:JSON.stringify(rec)},function(d){ showLoading(false); if(d&&d.ok){ records.unshift(rec); saveLocal(); showToast('✅ 車輛使用登記成功！'); resetForm(); document.getElementById('view_date').value=outDate; renderRecords(); } else{ showToast('雲端儲存失敗，請重試','error'); } });
 }
 function resetForm(){
   ['f_name','f_dept','f_reason','f_odo_out','f_odo_ret','f_note'].forEach(function(id){ document.getElementById(id).value=''; });
   document.getElementById('f_plate').value=''; document.getElementById('f_condition').value='';
   var today=todayStr(); document.getElementById('f_out_date').value=today; document.getElementById('f_ret_date').value=today;
-  var now=new Date(),rm=Math.round(now.getMinutes()/5)*5; if(rm===60){now.setHours(now.getHours()+1);rm=0;}
+  var now=new Date(),rm=Math.round(now.getMinutes()/30)*30; if(rm===60){now.setHours(now.getHours()+1);rm=0;}
   document.getElementById('f_out_time').innerHTML=buildTimeOpts(pad(now.getHours())+':'+pad(rm),false);
   document.getElementById('f_ret_time').innerHTML=buildTimeOpts('',true);
   document.querySelectorAll('.invalid').forEach(function(el){ el.classList.remove('invalid'); });
@@ -665,31 +586,32 @@ function resetForm(){
 
 /* ── Status ── */
 function getStatus(r){
-  var now=new Date(), today=todayStr();
+  if(r.status==='取消'||r.cancelReason) return '取消';
+  var now=new Date(),today=todayStr();
   if(r.retTime&&r.odoRet&&now>=new Date(r.retDate+'T'+r.retTime)) return '已返回';
   if(r.retDate&&r.retDate<today&&!r.odoRet) return '里程未補登';
   if(now>=new Date(r.outDate+'T'+r.outTime)) return '已借用';
   return '里程未補登';
 }
 function statusTag(s){
-  var c=s==='已返回'?'status-return':s==='已借用'?'status-out':s==='里程未補登'?'status-unpaid':'status-pending';
+  var c=s==='已返回'?'status-return':s==='已借用'?'status-out':s==='里程未補登'?'status-unpaid':s==='取消'?'status-cancel':'status-pending';
   return '<span class="status-tag '+c+'">'+s+'</span>';
 }
 
-/* ── Build Card ── */
-function buildCard(r, ctx){
-  var st=getStatus(r), uid=r.id+'_'+ctx;
-  var btns='<div class="detail-actions">'
-    +'<button class="btn-sm btn-edit" onclick="openEdit(\''+r.id+'\')">📝 補登返回資訊</button>'
-    +'<button class="btn-sm btn-del" onclick="openDelete(\''+r.id+'\')">🗑️ 刪除</button>'
-    +'</div>';
+/* ── Cards ── */
+function buildCard(r,ctx){
+  var st=getStatus(r),uid=r.id+'_'+ctx;
+  var isCancelled=st==='取消';
+  var btns='<div class="detail-actions">';
+  if(!isCancelled) btns+='<button class="btn-sm btn-edit" onclick="openEdit(\''+r.id+'\')">📝 補登返回資訊</button>';
+  if(!isCancelled) btns+='<button class="btn-sm" style="background:var(--muted)" onclick="openCancel(\''+r.id+'\')">🚫 取消</button>';
+  if(isCancelled)  btns+='<span style="font-size:13px;color:var(--danger);font-weight:600">已取消：'+( r.cancelReason||'')+'</span>';
+  if(isAdmin)      btns+='<button class="btn-sm btn-del" onclick="openDelete(\''+r.id+'\')">🗑️ 刪除</button>';
+  btns+='</div>';
   return '<div class="record-item" id="item_'+uid+'">'
     +'<div class="record-head" onclick="toggleDet(\''+r.id+'\',\''+ctx+'\')">'
       +'<div class="record-info"><div class="record-name">'+r.name+' <span style="font-size:12px;font-weight:400;color:var(--muted)">'+r.dept+'</span></div>'
-      +'<div class="record-sub">'+fmtD(r.outDate)+' '+fmtT(r.outTime)+' 出發　'+(r.plate?'🚗 '+r.plate:'無車牌')
-      +(r.odoOut?'　出發里程：'+r.odoOut+' km':'')
-      +(r.odoRet?'　返回里程：'+r.odoRet+' km':'')
-      +'</div></div>'
+      +'<div class="record-sub">'+fmtD(r.outDate)+' '+fmtT(r.outTime)+' 出發　'+(r.plate?'🚗 '+r.plate:'無車牌')+(r.odoOut?'　出發：'+r.odoOut+' km':'')+(r.odoRet?'　返回：'+r.odoRet+' km':'')+'</div></div>'
       +'<div class="record-right">'+statusTag(st)+'<span class="record-id-tag">'+r.id+'</span></div>'
       +'<span class="record-expand" id="exp_'+uid+'">▼</span>'
     +'</div>'
@@ -708,18 +630,16 @@ function buildCard(r, ctx){
         +'<div class="detail-item"><label>備註</label><span>'+(r.note||'─')+'</span></div>'
         +'<div class="detail-item"><label>狀態</label><span>'+st+'</span></div>'
         +'<div class="detail-item"><label>建立時間</label><span>'+new Date(r.createdAt).toLocaleString('zh-TW')+'</span></div>'
+        +(isCancelled?'<div class="detail-item"><label>取消原因</label><span>'+(r.cancelReason||'─')+'</span></div>':'')
       +'</div>'+btns
     +'</div></div>';
 }
-function toggleDet(id,ctx){
-  document.getElementById('det_'+id+'_'+ctx).classList.toggle('show');
-  document.getElementById('exp_'+id+'_'+ctx).classList.toggle('open');
-}
+function toggleDet(id,ctx){ document.getElementById('det_'+id+'_'+ctx).classList.toggle('show'); document.getElementById('exp_'+id+'_'+ctx).classList.toggle('open'); }
 
 /* ── Render Records ── */
 function renderRecords(){
   var vd=document.getElementById('view_date').value;
-  var f=records.filter(function(r){ return r.outDate<=vd&&(r.retDate>=vd||!r.retDate); });
+  var f=records.filter(function(r){ return r.outDate<=vd&&(r.retDate>=vd||!r.retDate)&&getStatus(r)!=='取消'; });
   var lbl=vd===todayStr()?'今天':fmtD(vd);
   document.getElementById('recordsCount').textContent=lbl+' 共 '+f.length+' 筆紀錄';
   var uc=records.filter(function(r){ return getStatus(r)==='里程未補登'; }).length;
@@ -728,245 +648,76 @@ function renderRecords(){
 }
 
 /* ── Unpaid ── */
-function buildUnpaidHTML(){
-  return records.filter(function(r){ return getStatus(r)==='里程未補登'; }).map(function(r){
-    return '<div class="unpaid-item" onclick="goToRecord(\''+r.id+'\',\''+r.outDate+'\')">'
-      +'<div class="ui-left"><div class="ui-name">'+r.name+' <span style="font-size:12px;font-weight:400;color:var(--muted)">'+r.dept+'</span></div>'
-      +'<div class="ui-sub">🚗 '+(r.plate||'─')+'　出發：'+fmtD(r.outDate)+' '+fmtT(r.outTime)+'　預計返回：'+fmtD(r.retDate)+'</div></div>'
-      +'<span class="ui-arrow">›</span></div>';
-  }).join('');
-}
-function showUnpaidModal(){ var h=buildUnpaidHTML(); if(!h) return; document.getElementById('unpaidList').innerHTML=h; document.getElementById('unpaidModal').classList.add('show'); }
-function checkUnpaidReminder(){ var h=buildUnpaidHTML(); if(!h) return; document.getElementById('unpaidList').innerHTML=h; document.getElementById('unpaidModal').classList.add('show'); }
-function goToRecord(id,outDate){
-  closeModal('unpaidModal');
-  document.getElementById('view_date').value=outDate; renderRecords();
-  setTimeout(function(){ var el=document.getElementById('item_'+id+'_view'); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); var det=document.getElementById('det_'+id+'_view'); if(det&&!det.classList.contains('show')) toggleDet(id,'view'); } },300);
-}
+function buildUnpaidHTML(){ return records.filter(function(r){ return getStatus(r)==='里程未補登'; }).map(function(r){ return '<div class="unpaid-item" onclick="goToRecord(\''+r.id+'\',\''+r.outDate+'\')"><div class="ui-left"><div class="ui-name">'+r.name+' <span style="font-size:12px;font-weight:400;color:var(--muted)">'+r.dept+'</span></div><div class="ui-sub">🚗 '+(r.plate||'─')+'　出發：'+fmtD(r.outDate)+' '+fmtT(r.outTime)+'　預計返回：'+fmtD(r.retDate)+'</div></div><span class="ui-arrow">›</span></div>'; }).join(''); }
+function showUnpaidModal(){ var h=buildUnpaidHTML(); if(!h) return; document.getElementById('unpaidList').innerHTML=h; openOv('ov_unpaid'); }
+function checkUnpaidReminder(){ var h=buildUnpaidHTML(); if(!h) return; document.getElementById('unpaidList').innerHTML=h; openOv('ov_unpaid'); }
+function goToRecord(id,outDate){ closeOv('ov_unpaid'); document.getElementById('view_date').value=outDate; renderRecords(); setTimeout(function(){ var el=document.getElementById('item_'+id+'_view'); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); var det=document.getElementById('det_'+id+'_view'); if(det&&!det.classList.contains('show')) toggleDet(id,'view'); } },300); }
 
 /* ── Edit ── */
-function openEdit(id){
-  var r=records.find(function(x){ return x.id===id; });
-  if(!r){ showToast('找不到該筆紀錄','error'); return; }
-  document.getElementById('edit_id').value=id;
-  document.getElementById('edit_ret_time').innerHTML=buildTimeOpts(r.retTime||'',true);
-  document.getElementById('edit_odo_out').value=r.odoOut||'';
-  document.getElementById('edit_odo_ret').value=r.odoRet||'';
-  document.getElementById('editModal').classList.add('show');
-}
+function openEdit(id){ var r=records.find(function(x){ return x.id===id; }); if(!r){ showToast('找不到該筆紀錄','error'); return; } document.getElementById('edit_id').value=id; document.getElementById('edit_ret_time').innerHTML=buildTimeOpts(r.retTime||'',true); document.getElementById('edit_odo_out').value=r.odoOut||''; document.getElementById('edit_odo_ret').value=r.odoRet||''; openOv('ov_edit'); }
 function saveEdit(){
-  var id=document.getElementById('edit_id').value;
-  var retTime=document.getElementById('edit_ret_time').value;
-  var odoOut=document.getElementById('edit_odo_out').value.trim();
-  var odoRet=document.getElementById('edit_odo_ret').value.trim();
-  var i=records.findIndex(function(x){ return x.id===id; });
-  if(i<0){ showToast('找不到該筆紀錄','error'); return; }
-  if(odoOut!==''&&odoRet!==''&&!isNaN(parseFloat(odoOut))&&!isNaN(parseFloat(odoRet))&&parseFloat(odoRet)<parseFloat(odoOut)){
-    showToast('⚠️ 返回里程（'+odoRet+' km）不可低於出發里程（'+odoOut+' km）','error'); return;
-  }
+  var id=document.getElementById('edit_id').value,retTime=document.getElementById('edit_ret_time').value;
+  var odoOut=document.getElementById('edit_odo_out').value.trim(),odoRet=document.getElementById('edit_odo_ret').value.trim();
+  var i=records.findIndex(function(x){ return x.id===id; }); if(i<0){ showToast('找不到該筆紀錄','error'); return; }
+  if(odoOut!==''&&odoRet!==''&&!isNaN(parseFloat(odoOut))&&!isNaN(parseFloat(odoRet))&&parseFloat(odoRet)<parseFloat(odoOut)){ showToast('⚠️ 返回里程（'+odoRet+' km）不可低於出發里程（'+odoOut+' km）','error'); return; }
   showLoading(true);
-  api({action:'editRecord',data:JSON.stringify({id:id,retTime:retTime,odoOut:odoOut,odoRet:odoRet})},function(d){
-    showLoading(false);
-    if(d&&d.ok){ records[i].retTime=retTime; records[i].odoOut=odoOut; records[i].odoRet=odoRet; saveLocal(); closeModal('editModal'); showToast('已更新返回資訊'); renderRecords(); if(adminFiltered) applyAdminSearch(); }
-    else{ showToast('雲端更新失敗','error'); }
-  });
+  api({action:'editRecord',data:JSON.stringify({id:id,retTime:retTime,odoOut:odoOut,odoRet:odoRet})},function(d){ showLoading(false); if(d&&d.ok){ records[i].retTime=retTime; records[i].odoOut=odoOut; records[i].odoRet=odoRet; saveLocal(); closeOv('ov_edit'); showToast('已更新返回資訊'); renderRecords(); if(adminFiltered) applyAdminSearch(); } else{ showToast('雲端更新失敗','error'); } });
+}
+
+/* ── Cancel ── */
+function openCancel(id){ document.getElementById('cancel_id').value=id; document.getElementById('cancel_reason').value=''; openOv('ov_cancel'); setTimeout(function(){ document.getElementById('cancel_reason').focus(); },100); }
+function confirmCancel(){
+  var id=document.getElementById('cancel_id').value,reason=document.getElementById('cancel_reason').value.trim();
+  if(!reason){ showToast('請填寫取消原因','error'); return; }
+  var i=records.findIndex(function(x){ return x.id===id; }); if(i<0){ showToast('找不到該筆紀錄','error'); return; }
+  showLoading(true);
+  api({action:'cancelRecord',data:JSON.stringify({id:id,cancelReason:reason})},function(d){ showLoading(false); if(d&&d.ok){ records[i].status='取消'; records[i].cancelReason=reason; saveLocal(); closeOv('ov_cancel'); showToast('已取消該筆登記','warning'); renderRecords(); if(adminFiltered) applyAdminSearch(); } else{ showToast('雲端更新失敗','error'); } });
 }
 
 /* ── Delete ── */
-function openDelete(id){ document.getElementById('delete_id').value=id; document.getElementById('deleteModal').classList.add('show'); }
-function confirmDelete(){
-  var id=document.getElementById('delete_id').value;
-  showLoading(true);
-  api({action:'delRecord',id:id},function(d){ showLoading(false); if(d&&d.ok){ records=records.filter(function(r){ return r.id!==id; }); saveLocal(); closeModal('deleteModal'); showToast('已刪除該筆紀錄','warning'); renderRecords(); if(adminFiltered) applyAdminSearch(); } else{ showToast('雲端刪除失敗','error'); } });
-}
-function openClear(){ document.getElementById('clearModal').classList.add('show'); }
-function confirmClear(){
-  showLoading(true);
-  api({action:'clearAll'},function(d){ showLoading(false); if(d&&d.ok){ records=[]; saveLocal(); closeModal('clearModal'); adminFiltered=null; document.getElementById('adminSearchResults').innerHTML=''; showToast('已清除全部紀錄','warning'); renderRecords(); } else{ showToast('雲端清除失敗','error'); } });
-}
+function openDelete(id){ document.getElementById('delete_id').value=id; openOv('ov_delete'); }
+function confirmDelete(){ var id=document.getElementById('delete_id').value; showLoading(true); api({action:'delRecord',id:id},function(d){ showLoading(false); if(d&&d.ok){ records=records.filter(function(r){ return r.id!==id; }); saveLocal(); closeOv('ov_delete'); showToast('已刪除該筆紀錄','warning'); renderRecords(); if(adminFiltered) applyAdminSearch(); } else{ showToast('雲端刪除失敗','error'); } }); }
+function openClear(){ openOv('ov_clear'); }
+function confirmClear(){ showLoading(true); api({action:'clearAll'},function(d){ showLoading(false); if(d&&d.ok){ records=[]; saveLocal(); closeOv('ov_clear'); adminFiltered=null; document.getElementById('adminSearchResults').innerHTML=''; showToast('已清除全部紀錄','warning'); renderRecords(); } else{ showToast('雲端清除失敗','error'); } }); }
 
 /* ── Admin Search ── */
-function applyAdminSearch(){
-  var sN=document.getElementById('s_name').value.trim().toLowerCase();
-  var sD=document.getElementById('s_dept').value.trim().toLowerCase();
-  var sDt=document.getElementById('s_date').value, sS=document.getElementById('s_status').value;
-  adminFiltered=records.filter(function(r){ if(sN&&r.name.toLowerCase().indexOf(sN)<0) return false; if(sD&&r.dept.toLowerCase().indexOf(sD)<0) return false; if(sDt&&r.outDate!==sDt) return false; if(sS&&getStatus(r)!==sS) return false; return true; });
-  var c=document.getElementById('adminSearchResults');
-  c.innerHTML=adminFiltered.length?'<div class="records-count">搜尋結果：'+adminFiltered.length+' 筆</div>'+adminFiltered.map(function(r){ return buildCard(r,'adm'); }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">🔍</span>查無符合紀錄</div>';
-}
+function applyAdminSearch(){ var sN=document.getElementById('s_name').value.trim().toLowerCase(),sD=document.getElementById('s_dept').value.trim().toLowerCase(),sDt=document.getElementById('s_date').value,sS=document.getElementById('s_status').value; adminFiltered=records.filter(function(r){ if(sN&&r.name.toLowerCase().indexOf(sN)<0) return false; if(sD&&r.dept.toLowerCase().indexOf(sD)<0) return false; if(sDt&&r.outDate!==sDt) return false; if(sS&&getStatus(r)!==sS) return false; return true; }); var c=document.getElementById('adminSearchResults'); c.innerHTML=adminFiltered.length?'<div class="records-count">搜尋結果：'+adminFiltered.length+' 筆</div>'+adminFiltered.map(function(r){ return buildCard(r,'adm'); }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">🔍</span>查無符合紀錄</div>'; }
 function clearAdminSearch(){ ['s_name','s_dept','s_date'].forEach(function(id){ document.getElementById(id).value=''; }); document.getElementById('s_status').value=''; adminFiltered=null; document.getElementById('adminSearchResults').innerHTML=''; }
 
 /* ── Export ── */
-function exportCSV(){
-  var src=adminFiltered!==null?adminFiltered:records;
-  if(!src.length){ showToast('目前無紀錄可匯出','warning'); return; }
-  var h=['單號','申請人','部門','使用日期','使用時間','返回日期','返回時間','車輛使用事由','車牌','出發里程','返回里程','車況','備註','狀態','建立時間'];
-  var rows=src.map(function(r){ return [r.id,r.name,r.dept,r.outDate,r.outTime,r.retDate,r.retTime||'','"'+r.reason.replace(/"/g,'""')+'"',r.plate||'',r.odoOut||'',r.odoRet||'',r.condition||'','"'+(r.note||'').replace(/"/g,'""')+'"',getStatus(r),new Date(r.createdAt).toLocaleString('zh-TW')].join(','); });
-  var csv='\uFEFF'+[h.join(',')].concat(rows).join('\n');
-  var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})); a.download='公務車使用紀錄_'+new Date().toLocaleDateString('zh-TW').replace(/\//g,'-')+'.csv'; a.click();
-  showToast('CSV 匯出成功');
-}
+function exportCSV(){ var src=adminFiltered!==null?adminFiltered:records; if(!src.length){ showToast('目前無紀錄可匯出','warning'); return; } var h=['單號','申請人','部門','使用日期','使用時間','返回日期','返回時間','車輛使用事由','車牌','出發里程','返回里程','車況','備註','狀態','建立時間','取消原因']; var rows=src.map(function(r){ return [r.id,r.name,r.dept,r.outDate,r.outTime,r.retDate,r.retTime||'','"'+r.reason.replace(/"/g,'""')+'"',r.plate||'',r.odoOut||'',r.odoRet||'',r.condition||'','"'+(r.note||'').replace(/"/g,'""')+'"',getStatus(r),new Date(r.createdAt).toLocaleString('zh-TW'),r.cancelReason||''].join(','); }); var csv='\uFEFF'+[h.join(',')].concat(rows).join('\n'); var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})); a.download='公務車使用紀錄_'+new Date().toLocaleDateString('zh-TW').replace(/\//g,'-')+'.csv'; a.click(); showToast('CSV 匯出成功'); }
 
 /* ── Chart ── */
-function initChartSelectors(){
-  var years={};
-  records.forEach(function(r){ if(r.outDate) years[r.outDate.slice(0,4)]=1; });
-  var yl=Object.keys(years).sort().reverse();
-  if(!yl.length) yl=[new Date().getFullYear().toString()];
-  var ys=document.getElementById('chart_year');
-  if(ys) ys.innerHTML=yl.map(function(y){ return '<option value="'+y+'">'+y+' 年</option>'; }).join('');
-  var ps=document.getElementById('chart_plate');
-  if(ps) ps.innerHTML='<option value="">全部車牌</option>'+plates.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join('');
-}
-function renderChart(){
-  var type=document.getElementById('chart_type').value;
-  var year=document.getElementById('chart_year').value;
-  var plate=document.getElementById('chart_plate').value;
-  var filtered=records.filter(function(r){ if(r.outDate.slice(0,4)!==year) return false; if(plate&&!matchPlate(r.plate,plate)) return false; return true; });
-  var labels,data,label;
-  if(type==='monthly'){
-    labels=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-    data=new Array(12).fill(0);
-    filtered.forEach(function(r){ var m=parseInt(r.outDate.slice(5,7),10)-1; if(m>=0&&m<12) data[m]++; });
-    label=year+' 年月份使用次數';
-  } else {
-    var ym={};
-    records.filter(function(r){ return !plate||matchPlate(r.plate,plate); }).forEach(function(r){ var y=r.outDate.slice(0,4); ym[y]=(ym[y]||0)+1; });
-    labels=Object.keys(ym).sort(); data=labels.map(function(y){ return ym[y]; }); label='年度使用次數';
-  }
-  var total=data.reduce(function(a,b){ return a+b; },0);
-  var max=data.length?Math.max.apply(null,data):0;
-  var maxI=data.indexOf(max);
-  var pos=data.filter(function(d){ return d>0; });
-  var avg=pos.length?(total/pos.length).toFixed(1):0;
-  document.getElementById('chartSummary').innerHTML='<div class="vh-summary-item"><div class="num">'+total+'</div><div class="lbl">總使用次數</div></div><div class="vh-summary-item"><div class="num">'+max+'</div><div class="lbl">最高 '+(labels[maxI]||'─')+'</div></div><div class="vh-summary-item"><div class="num">'+avg+'</div><div class="lbl">平均次數</div></div>';
-  var ctx=document.getElementById('usageChart').getContext('2d');
-  if(chartInst) chartInst.destroy();
-  chartInst=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{label:label,data:data,backgroundColor:data.map(function(v,i){ return i===maxI?'rgba(200,168,75,.85)':'rgba(26,58,92,.75)'; }),borderColor:data.map(function(v,i){ return i===maxI?'#c8a84b':'#1a3a5c'; }),borderWidth:1.5,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){ return ' '+c.parsed.y+' 次'; }}}},scales:{y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'rgba(0,0,0,.05)'}},x:{grid:{display:false}}}}});
-  var mm={};
-  filtered.forEach(function(r){ mm[r.name]=(mm[r.name]||0)+1; });
-  var ml=Object.keys(mm).map(function(n){ return {name:n,cnt:mm[n]}; }).sort(function(a,b){ return b.cnt-a.cnt; });
-  var mx=ml.length?ml[0].cnt:1;
-  document.getElementById('memberStats').innerHTML=ml.length?ml.map(function(m,i){ var pct=Math.round(m.cnt/mx*100); return '<div style="padding:10px 14px;border-bottom:1px solid var(--border);background:'+(i%2?'#f8f9fb':'#fff')+'"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px"><span style="font-weight:600;font-size:14px">'+m.name+'</span><span style="font-size:13px;color:var(--muted)">'+m.cnt+' 次</span></div><div style="background:#e0e4ea;border-radius:4px;height:6px"><div style="background:var(--primary);width:'+pct+'%;height:6px;border-radius:4px"></div></div></div>'; }).join(''):'<div class="member-empty">此條件無使用紀錄</div>';
-}
+function initChartSelectors(){ var years={}; records.forEach(function(r){ if(r.outDate) years[r.outDate.slice(0,4)]=1; }); var yl=Object.keys(years).sort().reverse(); if(!yl.length) yl=[new Date().getFullYear().toString()]; var ys=document.getElementById('chart_year'); if(ys) ys.innerHTML=yl.map(function(y){ return '<option value="'+y+'">'+y+' 年</option>'; }).join(''); var ps=document.getElementById('chart_plate'); if(ps) ps.innerHTML='<option value="">全部車牌</option>'+plates.map(function(p){ return '<option value="'+p+'">'+p+'</option>'; }).join(''); }
+function renderChart(){ var type=document.getElementById('chart_type').value,year=document.getElementById('chart_year').value,plate=document.getElementById('chart_plate').value; var filtered=records.filter(function(r){ if(r.outDate.slice(0,4)!==year) return false; if(plate&&!matchPlate(r.plate,plate)) return false; if(getStatus(r)==='取消') return false; return true; }); var labels,data,label; if(type==='monthly'){ labels=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']; data=new Array(12).fill(0); filtered.forEach(function(r){ var m=parseInt(r.outDate.slice(5,7),10)-1; if(m>=0&&m<12) data[m]++; }); label=year+' 年月份使用次數'; } else { var ym={}; records.filter(function(r){ return (!plate||matchPlate(r.plate,plate))&&getStatus(r)!=='取消'; }).forEach(function(r){ var y=r.outDate.slice(0,4); ym[y]=(ym[y]||0)+1; }); labels=Object.keys(ym).sort(); data=labels.map(function(y){ return ym[y]; }); label='年度使用次數'; } var total=data.reduce(function(a,b){ return a+b; },0),max=data.length?Math.max.apply(null,data):0,maxI=data.indexOf(max),pos=data.filter(function(d){ return d>0; }),avg=pos.length?(total/pos.length).toFixed(1):0; document.getElementById('chartSummary').innerHTML='<div class="vh-summary-item"><div class="num">'+total+'</div><div class="lbl">總使用次數</div></div><div class="vh-summary-item"><div class="num">'+max+'</div><div class="lbl">最高 '+(labels[maxI]||'─')+'</div></div><div class="vh-summary-item"><div class="num">'+avg+'</div><div class="lbl">平均次數</div></div>'; var ctx=document.getElementById('usageChart').getContext('2d'); if(chartInst) chartInst.destroy(); chartInst=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{label:label,data:data,backgroundColor:data.map(function(v,i){ return i===maxI?'rgba(200,168,75,.85)':'rgba(26,58,92,.75)'; }),borderColor:data.map(function(v,i){ return i===maxI?'#c8a84b':'#1a3a5c'; }),borderWidth:1.5,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){ return ' '+c.parsed.y+' 次'; }}}},scales:{y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'rgba(0,0,0,.05)'}},x:{grid:{display:false}}}}}); var mm={}; filtered.forEach(function(r){ mm[r.name]=(mm[r.name]||0)+1; }); var ml=Object.keys(mm).map(function(n){ return {name:n,cnt:mm[n]}; }).sort(function(a,b){ return b.cnt-a.cnt; }),mx=ml.length?ml[0].cnt:1; document.getElementById('memberStats').innerHTML=ml.length?ml.map(function(m,i){ var pct=Math.round(m.cnt/mx*100); return '<div style="padding:10px 14px;border-bottom:1px solid var(--border);background:'+(i%2?'#f8f9fb':'#fff')+'"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px"><span style="font-weight:600;font-size:14px">'+m.name+'</span><span style="font-size:13px;color:var(--muted)">'+m.cnt+' 次</span></div><div style="background:#e0e4ea;border-radius:4px;height:6px"><div style="background:var(--primary);width:'+pct+'%;height:6px;border-radius:4px"></div></div></div>'; }).join(''):'<div class="member-empty">此條件無使用紀錄</div>'; }
 
 /* ── Vehicle History ── */
-function openVehicleHistory(){
-  var sel=document.getElementById('vh_plate');
-  sel.innerHTML='<option value="">── 請選擇車牌 ──</option>';
-  plates.forEach(function(p){ var o=document.createElement('option'); o.value=o.textContent=p; sel.appendChild(o); });
-  vhTab='usage';
-  document.getElementById('vh_tabs').style.display='none';
-  document.getElementById('vh_content').innerHTML='<div class="empty-state" style="padding:24px"><span class="icon" style="font-size:30px">🚗</span>請選擇車牌查看歷史紀錄</div>';
-  document.getElementById('vehicleHistoryModal').classList.add('show');
-}
-function switchVhTab(tab){
-  vhTab=tab;
-  document.getElementById('vhTabUsage').classList.toggle('active',tab==='usage');
-  document.getElementById('vhTabMaint').classList.toggle('active',tab==='maint');
-  renderVehicleHistory();
-}
-function renderVehicleHistory(){
-  var raw=document.getElementById('vh_plate').value;
-  var plate=cleanPlate(raw);
-  var content=document.getElementById('vh_content'), tabs=document.getElementById('vh_tabs');
-  if(!plate){ tabs.style.display='none'; content.innerHTML='<div class="empty-state" style="padding:24px"><span class="icon" style="font-size:30px">🚗</span>請選擇車牌查看歷史紀錄</div>'; return; }
-  tabs.style.display='flex';
-  if(vhTab==='maint'){ renderMaintTab(plate); return; }
-  var list=records.filter(function(r){ return matchPlate(r.plate,plate); }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); });
-  var trips=list.length;
-  var km=list.reduce(function(s,r){ var o=parseFloat(r.odoOut),rt=parseFloat(r.odoRet); if(!isNaN(o)&&!isNaN(rt)&&rt>o) s+=(rt-o); return s; },0);
-  var last=list.length?fmtD(list[0].outDate):'─';
-  var keeper=keepers[raw]||keepers[plate]||'未設定';
-  var summary='<div class="vh-summary">'
-    +'<div class="vh-summary-item"><div class="num">'+trips+'</div><div class="lbl">總使用次數</div></div>'
-    +'<div class="vh-summary-item"><div class="num">'+(km?km.toFixed(0):'─')+'</div><div class="lbl">累計里程(km)</div></div>'
-    +'<div class="vh-summary-item"><div class="num" style="font-size:14px">'+last+'</div><div class="lbl">最近使用</div></div>'
-    +'</div>'
-    +'<div style="background:#f0f4fa;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:14px;display:flex;align-items:center;gap:8px">'
-    +'👤 <span style="color:var(--muted);font-weight:600">車輛保管人：</span><span style="font-weight:700;color:var(--primary)">'+keeper+'</span></div>';
-  content.innerHTML=summary+(list.length?list.map(function(r){ return buildCard(r,'vh'); }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">📭</span>此車牌尚無使用紀錄</div>');
-}
+function openVehicleHistory(){ var sel=document.getElementById('vh_plate'); sel.innerHTML='<option value="">── 請選擇車牌 ──</option>'; plates.forEach(function(p){ var o=document.createElement('option'); o.value=o.textContent=p; sel.appendChild(o); }); vhTab='usage'; document.getElementById('vh_tabs').style.display='none'; document.getElementById('vh_content').innerHTML='<div class="empty-state" style="padding:24px"><span class="icon" style="font-size:30px">🚗</span>請選擇車牌查看歷史紀錄</div>'; openOv('ov_vehicle'); }
+function switchVhTab(tab){ vhTab=tab; document.getElementById('vhTabUsage').classList.toggle('active',tab==='usage'); document.getElementById('vhTabMaint').classList.toggle('active',tab==='maint'); renderVehicleHistory(); }
+function renderVehicleHistory(){ var raw=document.getElementById('vh_plate').value,plate=cleanPlate(raw),content=document.getElementById('vh_content'),tabs=document.getElementById('vh_tabs'); if(!plate){ tabs.style.display='none'; content.innerHTML='<div class="empty-state" style="padding:24px"><span class="icon" style="font-size:30px">🚗</span>請選擇車牌查看歷史紀錄</div>'; return; } tabs.style.display='flex'; if(vhTab==='maint'){ renderMaintTab(plate); return; } var list=records.filter(function(r){ return matchPlate(r.plate,plate); }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); }); var trips=list.length,km=list.filter(function(r){ return getStatus(r)!=='取消'; }).reduce(function(s,r){ var o=parseFloat(r.odoOut),rt=parseFloat(r.odoRet); if(!isNaN(o)&&!isNaN(rt)&&rt>o) s+=(rt-o); return s; },0),last=list.length?fmtD(list[0].outDate):'─',keeper=keepers[raw]||keepers[plate]||'未設定'; var summary='<div class="vh-summary"><div class="vh-summary-item"><div class="num">'+trips+'</div><div class="lbl">總使用次數</div></div><div class="vh-summary-item"><div class="num">'+(km?km.toFixed(0):'─')+'</div><div class="lbl">累計里程(km)</div></div><div class="vh-summary-item"><div class="num" style="font-size:14px">'+last+'</div><div class="lbl">最近使用</div></div></div><div style="background:#f0f4fa;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:14px;display:flex;align-items:center;gap:8px">👤 <span style="color:var(--muted);font-weight:600">車輛保管人：</span><span style="font-weight:700;color:var(--primary)">'+keeper+'</span></div>'; content.innerHTML=summary+(list.length?list.map(function(r){ return buildCard(r,'vh'); }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">📭</span>此車牌尚無使用紀錄</div>'); }
 
 /* ── Maintenance ── */
 function nextMaintDate(){ var d=new Date(); d.setMonth(d.getMonth()+6); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 function getLatestOdo(plate){ var l=records.filter(function(r){ return matchPlate(r.plate,plate)&&r.odoRet; }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); }); return l.length?l[0].odoRet:''; }
-
 function renderMaintTab(plate){
   plate=cleanPlate(plate);
   if(!maintTypes||!maintTypes.length) maintTypes=DEF_MTYPES.slice();
   var content=document.getElementById('vh_content');
   function doRender(){
     var list=maintRecords.filter(function(m){ return matchPlate(m.plate,plate); }).sort(function(a,b){ return b.date.localeCompare(a.date); });
-    var latestOdo=getLatestOdo(plate);
-    var lastM=list.length?list[0]:null;
-    var nextDue=lastM&&lastM.nextDate?lastM.nextDate:'';
+    var latestOdo=getLatestOdo(plate),lastM=list.length?list[0]:null,nextDue=lastM&&lastM.nextDate?lastM.nextDate:'';
     var daysLeft=nextDue?Math.ceil((new Date(nextDue)-new Date())/86400000):null;
     var alertHtml='';
-    if(nextDue&&daysLeft!==null){
-      var urgent=daysLeft<=14;
-      var msg=daysLeft>=0?'距離下次保養還有 <strong>'+daysLeft+' 天</strong>（'+fmtD(nextDue)+'）':'<strong>已逾期 '+Math.abs(daysLeft)+' 天</strong>，請盡快安排保養（預計 '+fmtD(nextDue)+'）';
-      alertHtml='<div class="maint-item'+(urgent?' maint-upcoming':'')+'" style="margin-bottom:12px"><div class="maint-date">📅 下次保養提醒</div><div class="maint-desc" style="margin-top:6px">'+msg+'</div></div>';
-    }
-    var formHtml='<div class="maint-add-grid">'
-      +'<div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">📅 保養日期</label><input type="date" id="m_date" value="'+todayStr()+'"></div>'
-      +'<div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">🔧 保養類型</label><select id="m_type">'+maintTypes.map(function(t){ return '<option>'+t+'</option>'; }).join('')+'</select></div>'
-      +'<div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">🚗 保養當時里程（km）'+(latestOdo?'<span style="font-weight:400;color:var(--muted)">　最近：'+latestOdo+' km</span>':'')+'</label><input type="number" id="m_odo" placeholder="輸入里程數"></div>'
-      +'<div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">📅 下次保養日期</label><input type="date" id="m_next" value="'+nextMaintDate()+'"></div>'
-      +'<div style="grid-column:1/-1"><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">📝 保養內容說明（更換零件、廠商、費用等）</label>'
-      +'<textarea id="m_desc" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:inherit;min-height:60px;resize:vertical"></textarea></div>'
-      +'<button class="maint-add-btn" onclick="addMaint(\''+plate+'\')">新增保養紀錄</button></div>';
-    var listHtml=list.length?list.map(function(m){
-      var idx=maintRecords.indexOf(m);
-      return '<div class="maint-item"><button class="maint-del" onclick="delMaint('+idx+')">刪除</button>'
-        +'<span class="maint-date">'+fmtD(m.date)+'</span><span class="maint-type">'+m.type+'</span>'
-        +(m.desc?'<div class="maint-desc">'+m.desc+'</div>':'')
-        +'<div class="maint-meta">'+(m.odo?'🚗 保養里程：'+m.odo+' km　':'')+(m.nextDate?'📅 下次保養：'+fmtD(m.nextDate):'')+'</div></div>';
-    }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">🔧</span>尚無保養紀錄</div>';
+    if(nextDue&&daysLeft!==null){ var urgent=daysLeft<=14; var msg=daysLeft>=0?'距離下次保養還有 <strong>'+daysLeft+' 天</strong>（'+fmtD(nextDue)+'）':'<strong>已逾期 '+Math.abs(daysLeft)+' 天</strong>，請盡快安排保養（預計 '+fmtD(nextDue)+'）'; alertHtml='<div class="maint-item'+(urgent?' maint-upcoming':'')+'" style="margin-bottom:12px"><div class="maint-date">📅 下次保養提醒</div><div class="maint-desc" style="margin-top:6px">'+msg+'</div></div>'; }
+    var formHtml='<div class="maint-add-grid"><div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">📅 保養日期</label><input type="date" id="m_date" value="'+todayStr()+'"></div><div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">🔧 保養類型</label><select id="m_type">'+maintTypes.map(function(t){ return '<option>'+t+'</option>'; }).join('')+'</select></div><div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">🚗 保養當時里程（km）'+(latestOdo?'<span style="font-weight:400;color:var(--muted)">　最近：'+latestOdo+' km</span>':'')+'</label><input type="number" id="m_odo" placeholder="輸入里程數"></div><div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">📅 下次保養日期</label><input type="date" id="m_next" value="'+nextMaintDate()+'"></div><div style="grid-column:1/-1"><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">📝 保養內容說明（更換零件、廠商、費用等）</label><textarea id="m_desc" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:inherit;min-height:60px;resize:vertical"></textarea></div><button class="maint-add-btn" onclick="addMaint(\''+plate+'\')">新增保養紀錄</button></div>';
+    var listHtml=list.length?list.map(function(m){ var idx=maintRecords.indexOf(m); return '<div class="maint-item"><button class="maint-del" onclick="delMaint('+idx+')">刪除</button><span class="maint-date">'+fmtD(m.date)+'</span><span class="maint-type">'+m.type+'</span>'+(m.desc?'<div class="maint-desc">'+m.desc+'</div>':'')+'<div class="maint-meta">'+(m.odo?'🚗 保養里程：'+m.odo+' km　':'')+(m.nextDate?'📅 下次保養：'+fmtD(m.nextDate):'')+'</div></div>'; }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">🔧</span>尚無保養紀錄</div>';
     content.innerHTML=alertHtml+formHtml+listHtml;
   }
-  if(maintRecords.length===0){
-    showLoading(true);
-    api({action:'getMaint'},function(m){
-      showLoading(false);
-      if(m&&m.ok){ maintRecords=m.records.map(function(mr){ mr.date=normDate(mr.date); mr.nextDate=normDate(mr.nextDate); return mr; }); saveLocal(); }
-      doRender();
-    });
-  } else {
-    doRender();
-  }
+  if(maintRecords.length===0){ showLoading(true); api({action:'getMaint'},function(m){ showLoading(false); if(m&&m.ok){ maintRecords=m.records.map(function(mr){ mr.date=normDate(mr.date); mr.nextDate=normDate(mr.nextDate); return mr; }); saveLocal(); } doRender(); }); }
+  else{ doRender(); }
 }
-
-function addMaint(plate){
-  plate=cleanPlate(plate);
-  var date=document.getElementById('m_date').value;
-  var type=document.getElementById('m_type').value;
-  var odo=document.getElementById('m_odo').value;
-  var next=document.getElementById('m_next').value;
-  var desc=document.getElementById('m_desc').value.trim();
-  if(!date){ showToast('請選擇保養日期','error'); return; }
-  var rec={plate:plate,date:date,type:type,odo:odo,nextDate:next,desc:desc,createdAt:new Date().toISOString()};
-  showLoading(true);
-  api({action:'addMaint',data:JSON.stringify(rec)},function(d){
-    showLoading(false);
-    if(d&&d.ok){ rec.id=d.id; maintRecords.unshift(rec); saveLocal(); showToast('已新增保養紀錄'); renderMaintTab(plate); }
-    else{ showToast('雲端儲存失敗','error'); }
-  });
-}
-function delMaint(idx){
-  var plate=cleanPlate(maintRecords[idx].plate), id=maintRecords[idx].id;
-  showLoading(true);
-  api({action:'delMaint',id:id},function(d){
-    showLoading(false);
-    if(d&&d.ok){ maintRecords.splice(idx,1); saveLocal(); showToast('已刪除保養紀錄','warning'); renderMaintTab(plate); }
-    else{ showToast('雲端刪除失敗','error'); }
-  });
-}
-
-/* ── Modal close on overlay ── */
-document.querySelectorAll('.modal-overlay').forEach(function(el){
-  el.addEventListener('click',function(e){ if(e.target===el) el.classList.remove('show'); });
-});
+function addMaint(plate){ plate=cleanPlate(plate); var date=document.getElementById('m_date').value,type=document.getElementById('m_type').value,odo=document.getElementById('m_odo').value,next=document.getElementById('m_next').value,desc=document.getElementById('m_desc').value.trim(); if(!date){ showToast('請選擇保養日期','error'); return; } var rec={plate:plate,date:date,type:type,odo:odo,nextDate:next,desc:desc,createdAt:new Date().toISOString()}; showLoading(true); api({action:'addMaint',data:JSON.stringify(rec)},function(d){ showLoading(false); if(d&&d.ok){ rec.id=d.id; maintRecords.unshift(rec); saveLocal(); showToast('已新增保養紀錄'); renderMaintTab(plate); } else{ showToast('雲端儲存失敗','error'); } }); }
+function delMaint(idx){ var plate=cleanPlate(maintRecords[idx].plate),id=maintRecords[idx].id; showLoading(true); api({action:'delMaint',id:id},function(d){ showLoading(false); if(d&&d.ok){ maintRecords.splice(idx,1); saveLocal(); showToast('已刪除保養紀錄','warning'); renderMaintTab(plate); } else{ showToast('雲端刪除失敗','error'); } }); }
 
 init();
 </script>
