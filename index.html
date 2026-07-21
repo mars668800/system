@@ -859,7 +859,8 @@ function switchVhTab(tab){
   renderVehicleHistory();
 }
 function renderVehicleHistory(){
-  var plate=document.getElementById('vh_plate').value;
+  var rawPlate=document.getElementById('vh_plate').value;
+  var plate=cleanPlate(rawPlate);
   var content=document.getElementById('vh_content'),tabs=document.getElementById('vh_tabs');
   if(!plate){ tabs.style.display='none'; content.innerHTML='<div class="empty-state" style="padding:24px"><span class="icon" style="font-size:30px">🚗</span>請選擇車牌查看歷史紀錄</div>'; return; }
   tabs.style.display='flex';
@@ -872,14 +873,14 @@ function renderVehicleHistory(){
 }
 
 /* ════ MAINTENANCE ════ */
+function cleanPlate(p){ return p ? p.replace(/【.*?】/g,'').replace(/\s/g,'').trim() : p; }
+
 function matchPlate(recPlate, plate) {
-  if (!recPlate || !plate) return false;
-  var cleanRec = recPlate.replace(/【.*?】/g,'').replace(/\s/g,'').trim();
-  var cleanPlate = plate.replace(/【.*?】/g,'').replace(/\s/g,'').trim();
-  return cleanRec === cleanPlate;
+  return cleanPlate(recPlate) === cleanPlate(plate);
 }
 function getLatestOdo(plate){ var l=records.filter(function(r){ return matchPlate(r.plate,plate)&&r.odoRet; }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); }); return l.length?l[0].odoRet:''; }
 function renderMaintTab(plate){
+  plate = cleanPlate(plate);
   if(!maintTypes||!maintTypes.length) maintTypes=DEF_MAINT_TYPES.slice();
   var content=document.getElementById('vh_content');
   var list=maintRecords.filter(function(m){ return matchPlate(m.plate,plate); }).sort(function(a,b){ return b.date.localeCompare(a.date); });
@@ -903,6 +904,7 @@ function renderMaintTab(plate){
   content.innerHTML=alertHtml+formHtml+listHtml;
 }
 function addMaint(plate){
+  plate = cleanPlate(plate);
   var date=document.getElementById('m_date').value,type=document.getElementById('m_type').value;
   var odo=document.getElementById('m_odo').value,next=document.getElementById('m_next').value;
   var desc=document.getElementById('m_desc').value.trim();
