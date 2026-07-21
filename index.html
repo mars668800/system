@@ -874,10 +874,9 @@ function renderVehicleHistory(){
 /* ════ MAINTENANCE ════ */
 function matchPlate(recPlate, plate) {
   if (!recPlate || !plate) return false;
-  // 完全相符
-  if (recPlate === plate) return true;
-  // 紀錄車牌包含附加文字（如 "CBK-5382【技服部】"），只比對開頭的車牌號碼
-  return recPlate.indexOf(plate) === 0;
+  var cleanRec = recPlate.replace(/【.*?】/g,'').replace(/\s/g,'').trim();
+  var cleanPlate = plate.replace(/【.*?】/g,'').replace(/\s/g,'').trim();
+  return cleanRec === cleanPlate;
 }
 function getLatestOdo(plate){ var l=records.filter(function(r){ return matchPlate(r.plate,plate)&&r.odoRet; }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); }); return l.length?l[0].odoRet:''; }
 function renderMaintTab(plate){
