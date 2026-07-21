@@ -864,7 +864,7 @@ function renderVehicleHistory(){
   if(!plate){ tabs.style.display='none'; content.innerHTML='<div class="empty-state" style="padding:24px"><span class="icon" style="font-size:30px">🚗</span>請選擇車牌查看歷史紀錄</div>'; return; }
   tabs.style.display='flex';
   if(vhCurrentTab==='maint'){ renderMaintTab(plate); return; }
-  var list=records.filter(function(r){ return r.plate===plate; }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); });
+  var list=records.filter(function(r){ return matchPlate(r.plate,plate); }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); });
   var totalTrips=list.length,totalKm=list.reduce(function(s,r){ var o=parseFloat(r.odoOut),rt=parseFloat(r.odoRet); if(!isNaN(o)&&!isNaN(rt)&&rt>o) s+=(rt-o); return s; },0);
   var lastUse=list.length?fmtD(list[0].outDate):'─',keeper=plateKeepers[plate]||'未設定';
   var summary='<div class="vh-summary"><div class="vh-summary-item"><div class="num">'+totalTrips+'</div><div class="lbl">總使用次數</div></div><div class="vh-summary-item"><div class="num">'+(totalKm?totalKm.toFixed(0):'─')+'</div><div class="lbl">累計里程(km)</div></div><div class="vh-summary-item"><div class="num" style="font-size:14px">'+lastUse+'</div><div class="lbl">最近使用</div></div></div><div style="background:#f0f4fa;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:14px;display:flex;align-items:center;gap:8px">👤 <span style="color:var(--muted);font-weight:600">車輛保管人：</span><span style="font-weight:700;color:var(--primary)">'+keeper+'</span></div>';
@@ -872,12 +872,18 @@ function renderVehicleHistory(){
 }
 
 /* ════ MAINTENANCE ════ */
-function nextMaintDate(){ var d=new Date(); d.setMonth(d.getMonth()+6); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
-function getLatestOdo(plate){ var l=records.filter(function(r){ return r.plate===plate&&r.odoRet; }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); }); return l.length?l[0].odoRet:''; }
+function matchPlate(recPlate, plate) {
+  if (!recPlate || !plate) return false;
+  // 完全相符
+  if (recPlate === plate) return true;
+  // 紀錄車牌包含附加文字（如 "CBK-5382【技服部】"），只比對開頭的車牌號碼
+  return recPlate.indexOf(plate) === 0;
+}
+function getLatestOdo(plate){ var l=records.filter(function(r){ return matchPlate(r.plate,plate)&&r.odoRet; }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); }); return l.length?l[0].odoRet:''; }
 function renderMaintTab(plate){
   if(!maintTypes||!maintTypes.length) maintTypes=DEF_MAINT_TYPES.slice();
   var content=document.getElementById('vh_content');
-  var list=maintRecords.filter(function(m){ return m.plate===plate; }).sort(function(a,b){ return b.date.localeCompare(a.date); });
+  var list=maintRecords.filter(function(m){ return matchPlate(m.plate,plate); }).sort(function(a,b){ return b.date.localeCompare(a.date); });
   var latestOdo=getLatestOdo(plate),lastMaint=list.length?list[0]:null;
   var nextDue=lastMaint&&lastMaint.nextDate?lastMaint.nextDate:'';
   var daysLeft=nextDue?Math.ceil((new Date(nextDue)-new Date())/86400000):null;
