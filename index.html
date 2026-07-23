@@ -290,7 +290,6 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
 'use strict';
 
 var SCRIPT_URL  = 'https://script.google.com/macros/s/AKfycbzCnX-k5K654aOgJWsLbliSt4QhC4iUpMwi8v8G6LWTbwv1g0pF0xkz21WEZGPWjHO4pw/exec';
-var ADMIN_PWD   = '1234';
 var REC_KEY     = 'outing_records_v2';
 var MEM_KEY     = 'outing_members_v1';
 var DEPT_KEY    = 'outing_depts_v1';
@@ -306,6 +305,7 @@ var DEF_PLATES  = ['ABC-1234','DEF-5678'];
 var DEF_MTYPES  = ['定期保養','機油更換','輪胎更換','煞車維修','驗車/驗保','其他維修'];
 
 var isAdmin      = false;
+var adminPwdVal  = ''; // 驗證成功後暫存於記憶體，供後續敏感操作附帶送出（不寫入 localStorage）
 var records      = [];
 var members      = [];
 var depts        = [];
@@ -396,7 +396,7 @@ function saveLocal(){
 }
 function saveMeta(){
   saveLocal();
-  api({action:'saveMeta',data:JSON.stringify({members:members,depts:depts,plates:plates,plateKeepers:keepers,maintTypes:maintTypes,memberDepts:memberDepts})},null);
+  api({action:'saveMeta',password:adminPwdVal,data:JSON.stringify({members:members,depts:depts,plates:plates,plateKeepers:keepers,maintTypes:maintTypes,memberDepts:memberDepts})},null);
 }
 
 /* ── UI ── */
@@ -531,17 +531,27 @@ function openDelMaintType(i){ if(!confirm('確定要移除「'+maintTypes[i]+'�
 
 /* ── Admin ── */
 function toggleAdmin(){
-  if(isAdmin){ isAdmin=false; document.getElementById('adminPanel').style.display='none'; adminFiltered=null; showToast('已登出管理者模式','warning'); renderRecords(); }
+  if(isAdmin){ isAdmin=false; adminPwdVal=''; document.getElementById('adminPanel').style.display='none'; adminFiltered=null; showToast('已登出管理者模式','warning'); renderRecords(); }
   else{ openOv('ov_admin'); setTimeout(function(){ document.getElementById('adminPwd').focus(); },100); }
 }
 function checkAdmin(){
-  if(document.getElementById('adminPwd').value===ADMIN_PWD){
-    isAdmin=true; document.getElementById('adminPanel').style.display='block';
-    closeOv('ov_admin'); document.getElementById('adminPwd').value='';
-    renderMemberList(); renderDeptList(); renderPlateList(); renderMaintTypeList();
-    initChartSelectors(); renderChart();
-    showToast('已進入管理者模式'); renderRecords();
-  } else { showToast('密碼錯誤','error'); document.getElementById('adminPwd').value=''; }
+  var pwd = document.getElementById('adminPwd').value;
+  if (!pwd) { showToast('請輸入密碼','error'); return; }
+  showLoading(true);
+  api({action:'checkPassword', password: pwd}, function(d){
+    showLoading(false);
+    if (d && d.success) {
+      isAdmin=true; adminPwdVal=pwd;
+      document.getElementById('adminPanel').style.display='block';
+      closeOv('ov_admin'); document.getElementById('adminPwd').value='';
+      renderMemberList(); renderDeptList(); renderPlateList(); renderMaintTypeList();
+      initChartSelectors(); renderChart();
+      showToast('已進入管理者模式'); renderRecords();
+    } else {
+      showToast(d && d.message ? d.message : '密碼錯誤或連線失敗','error');
+      document.getElementById('adminPwd').value='';
+    }
+  });
 }
 
 /* ── Form ── */
@@ -676,9 +686,9 @@ function confirmCancel(){
 
 /* ── Delete ── */
 function openDelete(id){ document.getElementById('delete_id').value=id; openOv('ov_delete'); }
-function confirmDelete(){ var id=document.getElementById('delete_id').value; showLoading(true); api({action:'delRecord',id:id},function(d){ showLoading(false); if(d&&d.ok){ records=records.filter(function(r){ return r.id!==id; }); saveLocal(); closeOv('ov_delete'); showToast('已刪除該筆紀錄','warning'); renderRecords(); if(adminFiltered) applyAdminSearch(); } else{ showToast('雲端刪除失敗','error'); } }); }
+function confirmDelete(){ var id=document.getElementById('delete_id').value; showLoading(true); api({action:'delRecord',id:id,password:adminPwdVal},function(d){ showLoading(false); if(d&&d.ok){ records=records.filter(function(r){ return r.id!==id; }); saveLocal(); closeOv('ov_delete'); showToast('已刪除該筆紀錄','warning'); renderRecords(); if(adminFiltered) applyAdminSearch(); } else{ showToast((d&&d.message)||'雲端刪除失敗','error'); } }); }
 function openClear(){ openOv('ov_clear'); }
-function confirmClear(){ showLoading(true); api({action:'clearAll'},function(d){ showLoading(false); if(d&&d.ok){ records=[]; saveLocal(); closeOv('ov_clear'); adminFiltered=null; document.getElementById('adminSearchResults').innerHTML=''; showToast('已清除全部紀錄','warning'); renderRecords(); } else{ showToast('雲端清除失敗','error'); } }); }
+function confirmClear(){ showLoading(true); api({action:'clearAll',password:adminPwdVal},function(d){ showLoading(false); if(d&&d.ok){ records=[]; saveLocal(); closeOv('ov_clear'); adminFiltered=null; document.getElementById('adminSearchResults').innerHTML=''; showToast('已清除全部紀錄','warning'); renderRecords(); } else{ showToast((d&&d.message)||'雲端清除失敗','error'); } }); }
 
 /* ── Admin Search ── */
 function applyAdminSearch(){ var sN=document.getElementById('s_name').value.trim().toLowerCase(),sD=document.getElementById('s_dept').value.trim().toLowerCase(),sDt=document.getElementById('s_date').value,sS=document.getElementById('s_status').value; adminFiltered=records.filter(function(r){ if(sN&&r.name.toLowerCase().indexOf(sN)<0) return false; if(sD&&r.dept.toLowerCase().indexOf(sD)<0) return false; if(sDt&&r.outDate!==sDt) return false; if(sS&&getStatus(r)!==sS) return false; return true; }); var c=document.getElementById('adminSearchResults'); c.innerHTML=adminFiltered.length?'<div class="records-count">搜尋結果：'+adminFiltered.length+' 筆</div>'+adminFiltered.map(function(r){ return buildCard(r,'adm'); }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">🔍</span>查無符合紀錄</div>'; }
@@ -717,7 +727,7 @@ function renderMaintTab(plate){
   else{ doRender(); }
 }
 function addMaint(plate){ plate=cleanPlate(plate); var date=document.getElementById('m_date').value,type=document.getElementById('m_type').value,odo=document.getElementById('m_odo').value,next=document.getElementById('m_next').value,desc=document.getElementById('m_desc').value.trim(); if(!date){ showToast('請選擇保養日期','error'); return; } var rec={plate:plate,date:date,type:type,odo:odo,nextDate:next,desc:desc,createdAt:new Date().toISOString()}; showLoading(true); api({action:'addMaint',data:JSON.stringify(rec)},function(d){ showLoading(false); if(d&&d.ok){ rec.id=d.id; maintRecords.unshift(rec); saveLocal(); showToast('已新增保養紀錄'); renderMaintTab(plate); } else{ showToast('雲端儲存失敗','error'); } }); }
-function delMaint(idx){ var plate=cleanPlate(maintRecords[idx].plate),id=maintRecords[idx].id; showLoading(true); api({action:'delMaint',id:id},function(d){ showLoading(false); if(d&&d.ok){ maintRecords.splice(idx,1); saveLocal(); showToast('已刪除保養紀錄','warning'); renderMaintTab(plate); } else{ showToast('雲端刪除失敗','error'); } }); }
+function delMaint(idx){ var plate=cleanPlate(maintRecords[idx].plate),id=maintRecords[idx].id; showLoading(true); api({action:'delMaint',id:id,password:adminPwdVal},function(d){ showLoading(false); if(d&&d.ok){ maintRecords.splice(idx,1); saveLocal(); showToast('已刪除保養紀錄','warning'); renderMaintTab(plate); } else{ showToast((d&&d.message)||'雲端刪除失敗','error'); } }); }
 
 init();
 </script>
