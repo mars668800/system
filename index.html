@@ -283,6 +283,25 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
   <div class="modal-btns" style="margin-top:14px"><button class="btn-mcancel" onclick="closeOv('ov_vehicle')">關閉</button></div>
 </div></div>
 
+<div class="overlay" id="ov_editMaint" style="z-index:700">
+  <div class="modal">
+    <h3>✏️ 修改保養紀錄</h3>
+    <input type="hidden" id="em_id">
+    <input type="hidden" id="em_plate">
+    <label class="modal-label">📅 保養日期</label>
+    <input type="date" id="em_date">
+    <label class="modal-label">🔧 保養類型</label>
+    <select id="em_type"></select>
+    <label class="modal-label">🚗 保養當時里程（km）</label>
+    <input type="number" id="em_odo" placeholder="輸入里程數">
+    <label class="modal-label">📅 下次保養日期</label>
+    <input type="date" id="em_next">
+    <label class="modal-label">📝 保養內容說明</label>
+    <textarea id="em_desc" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:inherit;min-height:60px;resize:vertical;margin-bottom:12px"></textarea>
+    <div class="modal-btns"><button class="btn-mcancel" onclick="closeOv('ov_editMaint')">取消</button><button class="btn-mconfirm" onclick="saveEditMaint()">儲存</button></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -452,7 +471,7 @@ function init(){
         saveLocal();
         document.getElementById('view_date').value=today;
         if(isFirst||updated) renderRecords();
-        if(isFirst) checkUnpaidReminder();
+        checkUnpaidReminder();
       });
     });
   });
@@ -600,8 +619,7 @@ function getStatus(r){
   var now=new Date(),today=todayStr();
   if(r.retTime&&r.odoRet&&now>=new Date(r.retDate+'T'+r.retTime)) return '已返回';
   if(r.retDate&&r.retDate<today&&!r.odoRet) return '里程未補登';
-  if(now>=new Date(r.outDate+'T'+r.outTime)) return '已借用';
-  return '里程未補登';
+  return '已借用';
 }
 function statusTag(s){
   var c=s==='已返回'?'status-return':s==='已借用'?'status-out':s==='里程未補登'?'status-unpaid':s==='取消'?'status-cancel':'status-pending';
@@ -720,14 +738,46 @@ function renderMaintTab(plate){
     var alertHtml='';
     if(nextDue&&daysLeft!==null){ var urgent=daysLeft<=14; var msg=daysLeft>=0?'距離下次保養還有 <strong>'+daysLeft+' 天</strong>（'+fmtD(nextDue)+'）':'<strong>已逾期 '+Math.abs(daysLeft)+' 天</strong>，請盡快安排保養（預計 '+fmtD(nextDue)+'）'; alertHtml='<div class="maint-item'+(urgent?' maint-upcoming':'')+'" style="margin-bottom:12px"><div class="maint-date">📅 下次保養提醒</div><div class="maint-desc" style="margin-top:6px">'+msg+'</div></div>'; }
     var formHtml='<div class="maint-add-grid"><div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">📅 保養日期</label><input type="date" id="m_date" value="'+todayStr()+'"></div><div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">🔧 保養類型</label><select id="m_type">'+maintTypes.map(function(t){ return '<option>'+t+'</option>'; }).join('')+'</select></div><div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">🚗 保養當時里程（km）'+(latestOdo?'<span style="font-weight:400;color:var(--muted)">　最近：'+latestOdo+' km</span>':'')+'</label><input type="number" id="m_odo" placeholder="輸入里程數"></div><div><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">📅 下次保養日期</label><input type="date" id="m_next" value="'+nextMaintDate()+'"></div><div style="grid-column:1/-1"><label style="font-size:12px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px">📝 保養內容說明（更換零件、廠商、費用等）</label><textarea id="m_desc" style="width:100%;padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;font-family:inherit;min-height:60px;resize:vertical"></textarea></div><button class="maint-add-btn" onclick="addMaint(\''+plate+'\')">新增保養紀錄</button></div>';
-    var listHtml=list.length?list.map(function(m){ var idx=maintRecords.indexOf(m); return '<div class="maint-item"><button class="maint-del" onclick="delMaint('+idx+')">刪除</button><span class="maint-date">'+fmtD(m.date)+'</span><span class="maint-type">'+m.type+'</span>'+(m.desc?'<div class="maint-desc">'+m.desc+'</div>':'')+'<div class="maint-meta">'+(m.odo?'🚗 保養里程：'+m.odo+' km　':'')+(m.nextDate?'📅 下次保養：'+fmtD(m.nextDate):'')+'</div></div>'; }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">🔧</span>尚無保養紀錄</div>';
+    var listHtml=list.length?list.map(function(m){ var idx=maintRecords.indexOf(m); return '<div class="maint-item"><button class="maint-del" onclick="openEditMaint('+idx+')" style="background:var(--warning)">修改</button><span class="maint-date">'+fmtD(m.date)+'</span><span class="maint-type">'+m.type+'</span>'+(m.desc?'<div class="maint-desc">'+m.desc+'</div>':'')+'<div class="maint-meta">'+(m.odo?'🚗 保養里程：'+m.odo+' km　':'')+(m.nextDate?'📅 下次保養：'+fmtD(m.nextDate):'')+'</div></div>'; }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">🔧</span>尚無保養紀錄</div>';
     content.innerHTML=alertHtml+formHtml+listHtml;
   }
   if(maintRecords.length===0){ showLoading(true); api({action:'getMaint'},function(m){ showLoading(false); if(m&&m.ok){ maintRecords=m.records.map(function(mr){ mr.date=normDate(mr.date); mr.nextDate=normDate(mr.nextDate); return mr; }); saveLocal(); } doRender(); }); }
   else{ doRender(); }
 }
 function addMaint(plate){ plate=cleanPlate(plate); var date=document.getElementById('m_date').value,type=document.getElementById('m_type').value,odo=document.getElementById('m_odo').value,next=document.getElementById('m_next').value,desc=document.getElementById('m_desc').value.trim(); if(!date){ showToast('請選擇保養日期','error'); return; } var rec={plate:plate,date:date,type:type,odo:odo,nextDate:next,desc:desc,createdAt:new Date().toISOString()}; showLoading(true); api({action:'addMaint',data:JSON.stringify(rec)},function(d){ showLoading(false); if(d&&d.ok){ rec.id=d.id; maintRecords.unshift(rec); saveLocal(); showToast('已新增保養紀錄'); renderMaintTab(plate); } else{ showToast('雲端儲存失敗','error'); } }); }
-function delMaint(idx){ var plate=cleanPlate(maintRecords[idx].plate),id=maintRecords[idx].id; showLoading(true); api({action:'delMaint',id:id,password:adminPwdVal},function(d){ showLoading(false); if(d&&d.ok){ maintRecords.splice(idx,1); saveLocal(); showToast('已刪除保養紀錄','warning'); renderMaintTab(plate); } else{ showToast((d&&d.message)||'雲端刪除失敗','error'); } }); }
+function openEditMaint(idx){
+  var m=maintRecords[idx];
+  if(!m){ showToast('找不到該筆紀錄','error'); return; }
+  document.getElementById('em_id').value=idx;
+  document.getElementById('em_plate').value=m.plate;
+  document.getElementById('em_date').value=m.date||'';
+  document.getElementById('em_type').innerHTML=maintTypes.map(function(t){ return '<option'+(t===m.type?' selected':'')+'>'+t+'</option>'; }).join('');
+  document.getElementById('em_odo').value=m.odo||'';
+  document.getElementById('em_next').value=m.nextDate||'';
+  document.getElementById('em_desc').value=m.desc||'';
+  openOv('ov_editMaint');
+}
+function saveEditMaint(){
+  var idx=parseInt(document.getElementById('em_id').value);
+  var m=maintRecords[idx];
+  if(!m){ showToast('找不到該筆紀錄','error'); return; }
+  var date=document.getElementById('em_date').value;
+  var type=document.getElementById('em_type').value;
+  var odo=document.getElementById('em_odo').value;
+  var next=document.getElementById('em_next').value;
+  var desc=document.getElementById('em_desc').value.trim();
+  if(!date){ showToast('請選擇保養日期','error'); return; }
+  showLoading(true);
+  api({action:'editMaint',data:JSON.stringify({id:m.id,date:date,type:type,odo:odo,nextDate:next,desc:desc})},function(d){
+    showLoading(false);
+    if(d&&d.ok){
+      m.date=date; m.type=type; m.odo=odo; m.nextDate=next; m.desc=desc;
+      saveLocal(); closeOv('ov_editMaint');
+      showToast('已更新保養紀錄');
+      renderMaintTab(cleanPlate(m.plate));
+    } else { showToast((d&&d.message)||'雲端更新失敗','error'); }
+  });
+}
 
 init();
 </script>
