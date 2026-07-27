@@ -50,6 +50,7 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
 .btn-primary{background:var(--primary);color:#fff}
 .btn-sm{padding:7px 12px;font-size:13px;width:auto;border-radius:6px;font-weight:600;border:none;cursor:pointer;color:#fff}
 .btn-edit{background:var(--warning)}.btn-del{background:var(--danger)}
+.btn-sm:disabled{background:#c8ccd2 !important;color:#8a8f98;cursor:not-allowed;opacity:.7}
 .date-bar{display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap}
 .date-bar label{font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap}
 .date-bar input[type=date]{padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;background:#f8f9fb;flex:1;min-width:130px}
@@ -630,8 +631,9 @@ function statusTag(s){
 function buildCard(r,ctx){
   var st=getStatus(r),uid=r.id+'_'+ctx;
   var isCancelled=st==='取消';
+  var isReturned=st==='已返回';
   var btns='<div class="detail-actions">';
-  if(!isCancelled) btns+='<button class="btn-sm btn-edit" onclick="openEdit(\''+r.id+'\')">📝 補登返回資訊</button>';
+  if(!isCancelled) btns+='<button class="btn-sm btn-edit" '+(isReturned?'disabled':'')+' onclick="'+(isReturned?'':'openEdit(\''+r.id+'\')')+'">📝 補登返回資訊</button>';
   if(!isCancelled) btns+='<button class="btn-sm" style="background:var(--muted)" onclick="openCancel(\''+r.id+'\')">🚫 取消</button>';
   if(isCancelled)  btns+='<span style="font-size:13px;color:var(--danger);font-weight:600">已取消：'+( r.cancelReason||'')+'</span>';
   if(isAdmin)      btns+='<button class="btn-sm btn-del" onclick="openDelete(\''+r.id+'\')">🗑️ 刪除</button>';
