@@ -634,7 +634,7 @@ function buildCard(r,ctx){
   var isReturned=st==='已返回';
   var btns='<div class="detail-actions">';
   if(!isCancelled) btns+='<button class="btn-sm btn-edit" '+(isReturned?'disabled':'')+' onclick="'+(isReturned?'':'openEdit(\''+r.id+'\')')+'">📝 補登返回資訊</button>';
-  if(!isCancelled) btns+='<button class="btn-sm" style="background:var(--muted)" onclick="openCancel(\''+r.id+'\')">🚫 取消</button>';
+  if(!isCancelled) btns+='<button class="btn-sm" style="background:var(--muted)" '+(isReturned?'disabled':'')+' onclick="'+(isReturned?'':'openCancel(\''+r.id+'\')')+'">🚫 取消</button>';
   if(isCancelled)  btns+='<span style="font-size:13px;color:var(--danger);font-weight:600">已取消：'+( r.cancelReason||'')+'</span>';
   if(isAdmin)      btns+='<button class="btn-sm btn-del" onclick="openDelete(\''+r.id+'\')">🗑️ 刪除</button>';
   btns+='</div>';
