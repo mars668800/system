@@ -444,6 +444,9 @@ function init(){
   document.getElementById('f_out_date').value=today;
   document.getElementById('f_ret_date').value=today;
   document.getElementById('view_date').value=today;
+  var firstOfMonth=today.slice(0,8)+'01';
+  document.getElementById('s_date_from').value=firstOfMonth;
+  document.getElementById('s_date_to').value=today;
   var now=new Date(),rm=Math.round(now.getMinutes()/30)*30;
   if(rm===60){now.setHours(now.getHours()+1);rm=0;}
   var ct=pad(now.getHours())+':'+pad(rm);
