@@ -196,8 +196,13 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
       <div class="admin-search-grid">
         <input type="text" id="s_name" placeholder="依姓名搜尋">
         <input type="text" id="s_dept" placeholder="依部門搜尋">
-        <input type="date" id="s_date">
         <select id="s_status"><option value="">全部狀態</option><option value="已借用">已借用</option><option value="里程未補登">里程未補登</option><option value="取消">取消</option></select>
+        <div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <input type="date" id="s_date_from" style="padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;background:#fff;flex:1;min-width:130px">
+        <span style="color:var(--muted);font-size:13px">～</span>
+        <input type="date" id="s_date_to" style="padding:9px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:14px;background:#fff;flex:1;min-width:130px">
       </div>
       <div class="admin-btns-row">
         <button class="abtn-search" onclick="applyAdminSearch()">🔍 搜尋</button>
@@ -233,6 +238,8 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
   <div class="modal">
     <h3>📝 補登返回資訊</h3>
     <input type="hidden" id="edit_id">
+    <label class="modal-label">返回日期</label>
+    <input type="date" id="edit_ret_date">
     <label class="modal-label">返回時間</label>
     <select id="edit_ret_time" style="width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:15px;margin-bottom:12px;font-family:inherit"></select>
     <label class="modal-label">出發里程數（km）</label>
@@ -437,7 +444,6 @@ function init(){
   document.getElementById('f_out_date').value=today;
   document.getElementById('f_ret_date').value=today;
   document.getElementById('view_date').value=today;
-  document.getElementById('s_date').value=today;
   var now=new Date(),rm=Math.round(now.getMinutes()/30)*30;
   if(rm===60){now.setHours(now.getHours()+1);rm=0;}
   var ct=pad(now.getHours())+':'+pad(rm);
@@ -684,14 +690,14 @@ function checkUnpaidReminder(){ var h=buildUnpaidHTML(); if(!h) return; document
 function goToRecord(id,outDate){ closeOv('ov_unpaid'); document.getElementById('view_date').value=outDate; renderRecords(); setTimeout(function(){ var el=document.getElementById('item_'+id+'_view'); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); var det=document.getElementById('det_'+id+'_view'); if(det&&!det.classList.contains('show')) toggleDet(id,'view'); } },300); }
 
 /* ── Edit ── */
-function openEdit(id){ var r=records.find(function(x){ return x.id===id; }); if(!r){ showToast('找不到該筆紀錄','error'); return; } document.getElementById('edit_id').value=id; document.getElementById('edit_ret_time').innerHTML=buildTimeOpts(r.retTime||'',true); document.getElementById('edit_odo_out').value=r.odoOut||''; document.getElementById('edit_odo_ret').value=r.odoRet||''; openOv('ov_edit'); }
+function openEdit(id){ var r=records.find(function(x){ return x.id===id; }); if(!r){ showToast('找不到該筆紀錄','error'); return; } document.getElementById('edit_id').value=id; document.getElementById('edit_ret_date').value=r.retDate||''; document.getElementById('edit_ret_time').innerHTML=buildTimeOpts(r.retTime||'',true); document.getElementById('edit_odo_out').value=r.odoOut||''; document.getElementById('edit_odo_ret').value=r.odoRet||''; openOv('ov_edit'); }
 function saveEdit(){
-  var id=document.getElementById('edit_id').value,retTime=document.getElementById('edit_ret_time').value;
+  var id=document.getElementById('edit_id').value,retDate=document.getElementById('edit_ret_date').value,retTime=document.getElementById('edit_ret_time').value;
   var odoOut=document.getElementById('edit_odo_out').value.trim(),odoRet=document.getElementById('edit_odo_ret').value.trim();
   var i=records.findIndex(function(x){ return x.id===id; }); if(i<0){ showToast('找不到該筆紀錄','error'); return; }
   if(odoOut!==''&&odoRet!==''&&!isNaN(parseFloat(odoOut))&&!isNaN(parseFloat(odoRet))&&parseFloat(odoRet)<parseFloat(odoOut)){ showToast('⚠️ 返回里程（'+odoRet+' km）不可低於出發里程（'+odoOut+' km）','error'); return; }
   showLoading(true);
-  api({action:'editRecord',data:JSON.stringify({id:id,retTime:retTime,odoOut:odoOut,odoRet:odoRet})},function(d){ showLoading(false); if(d&&d.ok){ records[i].retTime=retTime; records[i].odoOut=odoOut; records[i].odoRet=odoRet; saveLocal(); closeOv('ov_edit'); showToast('已更新返回資訊'); renderRecords(); if(adminFiltered) applyAdminSearch(); } else{ showToast('雲端更新失敗','error'); } });
+  api({action:'editRecord',data:JSON.stringify({id:id,retDate:retDate,retTime:retTime,odoOut:odoOut,odoRet:odoRet})},function(d){ showLoading(false); if(d&&d.ok){ records[i].retDate=retDate; records[i].retTime=retTime; records[i].odoOut=odoOut; records[i].odoRet=odoRet; saveLocal(); closeOv('ov_edit'); showToast('已更新返回資訊'); renderRecords(); if(adminFiltered) applyAdminSearch(); } else{ showToast((d&&d.message)||'雲端更新失敗','error'); } });
 }
 
 /* ── Cancel ── */
@@ -711,8 +717,8 @@ function openClear(){ openOv('ov_clear'); }
 function confirmClear(){ showLoading(true); api({action:'clearAll',password:adminPwdVal},function(d){ showLoading(false); if(d&&d.ok){ records=[]; saveLocal(); closeOv('ov_clear'); adminFiltered=null; document.getElementById('adminSearchResults').innerHTML=''; showToast('已清除全部紀錄','warning'); renderRecords(); } else{ showToast((d&&d.message)||'雲端清除失敗','error'); } }); }
 
 /* ── Admin Search ── */
-function applyAdminSearch(){ var sN=document.getElementById('s_name').value.trim().toLowerCase(),sD=document.getElementById('s_dept').value.trim().toLowerCase(),sDt=document.getElementById('s_date').value,sS=document.getElementById('s_status').value; adminFiltered=records.filter(function(r){ if(sN&&r.name.toLowerCase().indexOf(sN)<0) return false; if(sD&&r.dept.toLowerCase().indexOf(sD)<0) return false; if(sDt&&r.outDate!==sDt) return false; if(sS&&getStatus(r)!==sS) return false; return true; }); var c=document.getElementById('adminSearchResults'); c.innerHTML=adminFiltered.length?'<div class="records-count">搜尋結果：'+adminFiltered.length+' 筆</div>'+adminFiltered.map(function(r){ return buildCard(r,'adm'); }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">🔍</span>查無符合紀錄</div>'; }
-function clearAdminSearch(){ ['s_name','s_dept','s_date'].forEach(function(id){ document.getElementById(id).value=''; }); document.getElementById('s_status').value=''; adminFiltered=null; document.getElementById('adminSearchResults').innerHTML=''; }
+function applyAdminSearch(){ var sN=document.getElementById('s_name').value.trim().toLowerCase(),sD=document.getElementById('s_dept').value.trim().toLowerCase(),sFrom=document.getElementById('s_date_from').value,sTo=document.getElementById('s_date_to').value,sS=document.getElementById('s_status').value; adminFiltered=records.filter(function(r){ if(sN&&r.name.toLowerCase().indexOf(sN)<0) return false; if(sD&&r.dept.toLowerCase().indexOf(sD)<0) return false; if(sFrom&&r.outDate<sFrom) return false; if(sTo&&r.outDate>sTo) return false; if(sS&&getStatus(r)!==sS) return false; return true; }); var c=document.getElementById('adminSearchResults'); c.innerHTML=adminFiltered.length?'<div class="records-count">搜尋結果：'+adminFiltered.length+' 筆</div>'+adminFiltered.map(function(r){ return buildCard(r,'adm'); }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">🔍</span>查無符合紀錄</div>'; }
+function clearAdminSearch(){ ['s_name','s_dept','s_date_from','s_date_to'].forEach(function(id){ document.getElementById(id).value=''; }); document.getElementById('s_status').value=''; adminFiltered=null; document.getElementById('adminSearchResults').innerHTML=''; }
 
 /* ── Export ── */
 function exportCSV(){ var src=adminFiltered!==null?adminFiltered:records; if(!src.length){ showToast('目前無紀錄可匯出','warning'); return; } var h=['單號','申請人','部門','使用日期','使用時間','返回日期','返回時間','車輛使用事由','車牌','出發里程','返回里程','車況','備註','狀態','建立時間','取消原因']; var rows=src.map(function(r){ return [r.id,r.name,r.dept,r.outDate,r.outTime,r.retDate,r.retTime||'','"'+r.reason.replace(/"/g,'""')+'"',r.plate||'',r.odoOut||'',r.odoRet||'',r.condition||'','"'+(r.note||'').replace(/"/g,'""')+'"',getStatus(r),new Date(r.createdAt).toLocaleString('zh-TW'),r.cancelReason||''].join(','); }); var csv='\uFEFF'+[h.join(',')].concat(rows).join('\n'); var a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'})); a.download='公務車使用紀錄_'+new Date().toLocaleDateString('zh-TW').replace(/\//g,'-')+'.csv'; a.click(); showToast('CSV 匯出成功'); }
