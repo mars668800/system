@@ -398,16 +398,14 @@ function buildTimeOpts(sel, includeEmpty){
 }
 
 /* ── API ──
-   全面改用 POST 傳送，避免密碼或任何參數出現在網址列、瀏覽紀錄、伺服器存取紀錄中。
-   使用 URLSearchParams 作為 body（瀏覽器自動設定 application/x-www-form-urlencoded），
-   這是 CORS 安全清單內的內容類型，不會觸發預檢請求(preflight)，
-   Apps Script 的 doPost 也能透過 e.parameter 正確解析。
+   注意：Google Apps Script 的 Web App 網址會先進行 302 轉址才真正執行程式碼。
+   根據 fetch 規範，POST 請求遇到 302 轉址會被自動降級為 GET 且遺失所有資料，
+   因此這裡維持使用 GET（query string）以確保連線穩定可靠。
+   密碼安全性改由後端加強：登入失敗次數限制 + 敏感操作二次驗證（見 Apps Script）。
 */
 function api(params,cb){
-  fetch(SCRIPT_URL, {
-    method: 'POST',
-    body: new URLSearchParams(params)
-  }).then(function(r){ return r.json(); }).then(function(d){ if(cb) cb(d); }).catch(function(){ if(cb) cb(null); });
+  var url=SCRIPT_URL+'?'+Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
+  fetch(url).then(function(r){ return r.json(); }).then(function(d){ if(cb) cb(d); }).catch(function(){ if(cb) cb(null); });
 }
 
 /* ── Storage ── */
