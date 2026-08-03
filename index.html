@@ -397,10 +397,17 @@ function buildTimeOpts(sel, includeEmpty){
   return o;
 }
 
-/* ── API ── */
+/* ── API ──
+   全面改用 POST 傳送，避免密碼或任何參數出現在網址列、瀏覽紀錄、伺服器存取紀錄中。
+   使用 URLSearchParams 作為 body（瀏覽器自動設定 application/x-www-form-urlencoded），
+   這是 CORS 安全清單內的內容類型，不會觸發預檢請求(preflight)，
+   Apps Script 的 doPost 也能透過 e.parameter 正確解析。
+*/
 function api(params,cb){
-  var url=SCRIPT_URL+'?'+Object.keys(params).map(function(k){ return k+'='+encodeURIComponent(params[k]); }).join('&');
-  fetch(url).then(function(r){ return r.json(); }).then(function(d){ if(cb) cb(d); }).catch(function(){ if(cb) cb(null); });
+  fetch(SCRIPT_URL, {
+    method: 'POST',
+    body: new URLSearchParams(params)
+  }).then(function(r){ return r.json(); }).then(function(d){ if(cb) cb(d); }).catch(function(){ if(cb) cb(null); });
 }
 
 /* ── Storage ── */
