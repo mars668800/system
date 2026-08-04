@@ -343,6 +343,8 @@ var maintRecords = [];
 var maintTypes   = DEF_MTYPES.slice();
 var adminFiltered= null;
 var vhTab        = 'usage';
+var vhPageSize   = 12;
+var vhShownCount = vhPageSize;
 var chartInst    = null;
 
 /* ── Modal helpers ── */
@@ -499,7 +501,24 @@ function goToday(){ document.getElementById('view_date').value=todayStr(); rende
 function renderMemberSelect(){ var sel=document.getElementById('f_name'),cur=sel.value; sel.innerHTML='<option value="">── 請選擇 ──</option>'; members.forEach(function(m){ var o=document.createElement('option'); o.value=o.textContent=m; if(m===cur) o.selected=true; sel.appendChild(o); }); }
 function renderDeptSelect(){ var sel=document.getElementById('f_dept'),cur=sel.value; sel.innerHTML='<option value="">── 請選擇 ──</option>'; depts.forEach(function(d){ var o=document.createElement('option'); o.value=o.textContent=d; if(d===cur) o.selected=true; sel.appendChild(o); }); }
 function renderPlateSelect(){ var sel=document.getElementById('f_plate'),cur=sel.value; sel.innerHTML='<option value="">── 請選擇車牌 ──</option>'; plates.forEach(function(p){ var o=document.createElement('option'); o.value=o.textContent=p; if(p===cur) o.selected=true; sel.appendChild(o); }); }
-function autoFillDept(){ var name=document.getElementById('f_name').value,dept=memberDepts[name]||''; if(!dept) return; var sel=document.getElementById('f_dept'); for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===dept){ sel.value=dept; return; } } }
+function autoFillDept(){
+  var name=document.getElementById('f_name').value;
+  if(!name) return;
+  var dept=memberDepts[name]||'';
+  if(!dept){
+    // 若尚未取得雲端 memberDepts，稍後重試一次
+    setTimeout(function(){
+      var d2=memberDepts[name]||'';
+      if(d2){
+        var sel2=document.getElementById('f_dept');
+        for(var j=0;j<sel2.options.length;j++){ if(sel2.options[j].value===d2){ sel2.value=d2; return; } }
+      }
+    }, 800);
+    return;
+  }
+  var sel=document.getElementById('f_dept');
+  for(var i=0;i<sel.options.length;i++){ if(sel.options[i].value===dept){ sel.value=dept; return; } }
+}
 function autoFillOdo(){ var plate=cleanPlate(document.getElementById('f_plate').value); if(!plate){ document.getElementById('f_odo_out').value=''; return; } var list=records.filter(function(r){ return matchPlate(r.plate,plate)&&r.odoRet; }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); }); document.getElementById('f_odo_out').value=list.length?list[0].odoRet:''; }
 
 /* ── Drag ── */
@@ -507,13 +526,33 @@ function makeDraggable(listId,arr,afterDrop){
   var el=document.getElementById(listId),dragged=null;
   el.querySelectorAll('.member-item').forEach(function(item){
     item.setAttribute('draggable','true');
+    var handle=item.querySelector('.drag-handle');
+
+    // 滑鼠拖曳：整個項目都可以（桌機沒有滑動衝突問題）
     item.addEventListener('dragstart',function(){ dragged=item; setTimeout(function(){ item.classList.add('dragging'); },0); });
     item.addEventListener('dragend',function(){ item.classList.remove('dragging'); el.querySelectorAll('.member-item').forEach(function(i){ i.classList.remove('drag-over'); }); syncOrder(el,arr); afterDrop(); });
     item.addEventListener('dragover',function(e){ e.preventDefault(); el.querySelectorAll('.member-item').forEach(function(i){ i.classList.remove('drag-over'); }); if(item!==dragged) item.classList.add('drag-over'); });
     item.addEventListener('drop',function(e){ e.preventDefault(); if(item!==dragged) el.insertBefore(dragged,item); });
-    item.addEventListener('touchstart',function(){ dragged=item; item.classList.add('dragging'); },{passive:true});
-    item.addEventListener('touchmove',function(e){ e.preventDefault(); var y=e.touches[0].clientY; var others=Array.from(el.querySelectorAll('.member-item:not(.dragging)')); others.forEach(function(i){ i.classList.remove('drag-over'); }); var tgt=others.find(function(i){ var r=i.getBoundingClientRect(); return y>=r.top&&y<=r.bottom; }); if(tgt){ tgt.classList.add('drag-over'); el.insertBefore(dragged,tgt); } },{passive:false});
-    item.addEventListener('touchend',function(){ item.classList.remove('dragging'); el.querySelectorAll('.member-item').forEach(function(i){ i.classList.remove('drag-over'); }); syncOrder(el,arr); afterDrop(); dragged=null; });
+
+    // 觸控拖曳：只綁在「⠿ 拖曳把手」上，避免手機滑動整頁時誤觸發拖曳
+    if(!handle) return;
+    handle.addEventListener('touchstart',function(e){
+      dragged=item; item.classList.add('dragging');
+      e.preventDefault(); // 只在按住把手時才阻止預設行為（避免拖動時頁面跟著捲動）
+    },{passive:false});
+    handle.addEventListener('touchmove',function(e){
+      e.preventDefault();
+      var y=e.touches[0].clientY;
+      var others=Array.from(el.querySelectorAll('.member-item:not(.dragging)'));
+      others.forEach(function(i){ i.classList.remove('drag-over'); });
+      var tgt=others.find(function(i){ var r=i.getBoundingClientRect(); return y>=r.top&&y<=r.bottom; });
+      if(tgt){ tgt.classList.add('drag-over'); el.insertBefore(dragged,tgt); }
+    },{passive:false});
+    handle.addEventListener('touchend',function(){
+      if(dragged) dragged.classList.remove('dragging');
+      el.querySelectorAll('.member-item').forEach(function(i){ i.classList.remove('drag-over'); });
+      syncOrder(el,arr); afterDrop(); dragged=null;
+    });
   });
 }
 function syncOrder(el,arr){ var o=[]; el.querySelectorAll('.member-item').forEach(function(i){ o.push(i.dataset.name); }); arr.splice(0,arr.length); o.forEach(function(n){ arr.push(n); }); }
@@ -736,9 +775,18 @@ function initChartSelectors(){ var years={}; records.forEach(function(r){ if(r.o
 function renderChart(){ var type=document.getElementById('chart_type').value,year=document.getElementById('chart_year').value,plate=document.getElementById('chart_plate').value; var filtered=records.filter(function(r){ if(r.outDate.slice(0,4)!==year) return false; if(plate&&!matchPlate(r.plate,plate)) return false; if(getStatus(r)==='取消') return false; return true; }); var labels,data,label; if(type==='monthly'){ labels=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月']; data=new Array(12).fill(0); filtered.forEach(function(r){ var m=parseInt(r.outDate.slice(5,7),10)-1; if(m>=0&&m<12) data[m]++; }); label=year+' 年月份使用次數'; } else { var ym={}; records.filter(function(r){ return (!plate||matchPlate(r.plate,plate))&&getStatus(r)!=='取消'; }).forEach(function(r){ var y=r.outDate.slice(0,4); ym[y]=(ym[y]||0)+1; }); labels=Object.keys(ym).sort(); data=labels.map(function(y){ return ym[y]; }); label='年度使用次數'; } var total=data.reduce(function(a,b){ return a+b; },0),max=data.length?Math.max.apply(null,data):0,maxI=data.indexOf(max),pos=data.filter(function(d){ return d>0; }),avg=pos.length?(total/pos.length).toFixed(1):0; document.getElementById('chartSummary').innerHTML='<div class="vh-summary-item"><div class="num">'+total+'</div><div class="lbl">總使用次數</div></div><div class="vh-summary-item"><div class="num">'+max+'</div><div class="lbl">最高 '+(labels[maxI]||'─')+'</div></div><div class="vh-summary-item"><div class="num">'+avg+'</div><div class="lbl">平均次數</div></div>'; var ctx=document.getElementById('usageChart').getContext('2d'); if(chartInst) chartInst.destroy(); chartInst=new Chart(ctx,{type:'bar',data:{labels:labels,datasets:[{label:label,data:data,backgroundColor:data.map(function(v,i){ return i===maxI?'rgba(200,168,75,.85)':'rgba(26,58,92,.75)'; }),borderColor:data.map(function(v,i){ return i===maxI?'#c8a84b':'#1a3a5c'; }),borderWidth:1.5,borderRadius:4}]},options:{responsive:true,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){ return ' '+c.parsed.y+' 次'; }}}},scales:{y:{beginAtZero:true,ticks:{stepSize:1},grid:{color:'rgba(0,0,0,.05)'}},x:{grid:{display:false}}}}}); var mm={}; filtered.forEach(function(r){ mm[r.name]=(mm[r.name]||0)+1; }); var ml=Object.keys(mm).map(function(n){ return {name:n,cnt:mm[n]}; }).sort(function(a,b){ return b.cnt-a.cnt; }),mx=ml.length?ml[0].cnt:1; document.getElementById('memberStats').innerHTML=ml.length?ml.map(function(m,i){ var pct=Math.round(m.cnt/mx*100); return '<div style="padding:10px 14px;border-bottom:1px solid var(--border);background:'+(i%2?'#f8f9fb':'#fff')+'"><div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px"><span style="font-weight:600;font-size:14px">'+m.name+'</span><span style="font-size:13px;color:var(--muted)">'+m.cnt+' 次</span></div><div style="background:#e0e4ea;border-radius:4px;height:6px"><div style="background:var(--primary);width:'+pct+'%;height:6px;border-radius:4px"></div></div></div>'; }).join(''):'<div class="member-empty">此條件無使用紀錄</div>'; }
 
 /* ── Vehicle History ── */
-function openVehicleHistory(){ var sel=document.getElementById('vh_plate'); sel.innerHTML='<option value="">── 請選擇車牌 ──</option>'; plates.forEach(function(p){ var o=document.createElement('option'); o.value=o.textContent=p; sel.appendChild(o); }); vhTab='usage'; document.getElementById('vh_tabs').style.display='none'; document.getElementById('vh_content').innerHTML='<div class="empty-state" style="padding:24px"><span class="icon" style="font-size:30px">🚗</span>請選擇車牌查看歷史紀錄</div>'; openOv('ov_vehicle'); }
-function switchVhTab(tab){ vhTab=tab; document.getElementById('vhTabUsage').classList.toggle('active',tab==='usage'); document.getElementById('vhTabMaint').classList.toggle('active',tab==='maint'); renderVehicleHistory(); }
-function renderVehicleHistory(){ var raw=document.getElementById('vh_plate').value,plate=cleanPlate(raw),content=document.getElementById('vh_content'),tabs=document.getElementById('vh_tabs'); if(!plate){ tabs.style.display='none'; content.innerHTML='<div class="empty-state" style="padding:24px"><span class="icon" style="font-size:30px">🚗</span>請選擇車牌查看歷史紀錄</div>'; return; } tabs.style.display='flex'; if(vhTab==='maint'){ renderMaintTab(plate); return; } var list=records.filter(function(r){ return matchPlate(r.plate,plate); }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); }); var trips=list.length,km=list.filter(function(r){ return getStatus(r)!=='取消'; }).reduce(function(s,r){ var o=parseFloat(r.odoOut),rt=parseFloat(r.odoRet); if(!isNaN(o)&&!isNaN(rt)&&rt>o) s+=(rt-o); return s; },0),last=list.length?fmtD(list[0].outDate):'─',keeper=keepers[raw]||keepers[plate]||'未設定'; var summary='<div class="vh-summary"><div class="vh-summary-item"><div class="num">'+trips+'</div><div class="lbl">總使用次數</div></div><div class="vh-summary-item"><div class="num">'+(km?km.toFixed(0):'─')+'</div><div class="lbl">累計里程(km)</div></div><div class="vh-summary-item"><div class="num" style="font-size:14px">'+last+'</div><div class="lbl">最近使用</div></div></div><div style="background:#f0f4fa;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:14px;display:flex;align-items:center;gap:8px">👤 <span style="color:var(--muted);font-weight:600">車輛保管人：</span><span style="font-weight:700;color:var(--primary)">'+keeper+'</span></div>'; content.innerHTML=summary+(list.length?list.map(function(r){ return buildCard(r,'vh'); }).join(''):'<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">📭</span>此車牌尚無使用紀錄</div>'); }
+function openVehicleHistory(){ var sel=document.getElementById('vh_plate'); sel.innerHTML='<option value="">── 請選擇車牌 ──</option>'; plates.forEach(function(p){ var o=document.createElement('option'); o.value=o.textContent=p; sel.appendChild(o); }); vhTab='usage'; vhShownCount=vhPageSize; document.getElementById('vh_tabs').style.display='none'; document.getElementById('vh_content').innerHTML='<div class="empty-state" style="padding:24px"><span class="icon" style="font-size:30px">🚗</span>請選擇車牌查看歷史紀錄</div>'; openOv('ov_vehicle'); }
+function switchVhTab(tab){ vhTab=tab; vhShownCount=vhPageSize; document.getElementById('vhTabUsage').classList.toggle('active',tab==='usage'); document.getElementById('vhTabMaint').classList.toggle('active',tab==='maint'); renderVehicleHistory(); }
+function showMoreVh(){ vhShownCount+=vhPageSize; renderVehicleHistory(); }
+function renderVehicleHistory(){ var raw=document.getElementById('vh_plate').value,plate=cleanPlate(raw),content=document.getElementById('vh_content'),tabs=document.getElementById('vh_tabs'); if(!plate){ tabs.style.display='none'; content.innerHTML='<div class="empty-state" style="padding:24px"><span class="icon" style="font-size:30px">🚗</span>請選擇車牌查看歷史紀錄</div>'; return; } tabs.style.display='flex'; if(vhTab==='maint'){ renderMaintTab(plate); return; } var list=records.filter(function(r){ return matchPlate(r.plate,plate); }).sort(function(a,b){ return (b.outDate+b.outTime).localeCompare(a.outDate+a.outTime); }); var trips=list.length,km=list.filter(function(r){ return getStatus(r)!=='取消'; }).reduce(function(s,r){ var o=parseFloat(r.odoOut),rt=parseFloat(r.odoRet); if(!isNaN(o)&&!isNaN(rt)&&rt>o) s+=(rt-o); return s; },0),last=list.length?fmtD(list[0].outDate):'─',keeper=keepers[raw]||keepers[plate]||'未設定'; var summary='<div class="vh-summary"><div class="vh-summary-item"><div class="num">'+trips+'</div><div class="lbl">總使用次數</div></div><div class="vh-summary-item"><div class="num">'+(km?km.toFixed(0):'─')+'</div><div class="lbl">累計里程(km)</div></div><div class="vh-summary-item"><div class="num" style="font-size:14px">'+last+'</div><div class="lbl">最近使用</div></div></div><div style="background:#f0f4fa;border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin-bottom:12px;font-size:14px;display:flex;align-items:center;gap:8px">👤 <span style="color:var(--muted);font-weight:600">車輛保管人：</span><span style="font-weight:700;color:var(--primary)">'+keeper+'</span></div>';
+  var visible=list.slice(0,vhShownCount);
+  var hasMore=list.length>vhShownCount;
+  var listHtml=list.length
+    ? visible.map(function(r){ return buildCard(r,'vh'); }).join('')
+      + '<div style="text-align:center;font-size:12px;color:var(--muted);margin:8px 0">顯示 '+visible.length+' / '+list.length+' 筆</div>'
+      + (hasMore ? '<button class="today-btn" style="width:100%;padding:12px" onclick="showMoreVh()">顯示更多（還有 '+(list.length-visible.length)+' 筆）</button>' : '')
+    : '<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">📭</span>此車牌尚無使用紀錄</div>';
+  content.innerHTML=summary+listHtml; }
 
 /* ── Maintenance ── */
 function nextMaintDate(){ var d=new Date(); d.setMonth(d.getMonth()+6); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
