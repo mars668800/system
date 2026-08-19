@@ -25,8 +25,12 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
 #toast.success{background:var(--success)}#toast.error{background:var(--danger)}#toast.warning{background:var(--warning)}
 .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:600;align-items:center;justify-content:center;padding:16px}
 .overlay.show{display:flex}
-.modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto}
+.modal{background:#fff;border-radius:12px;padding:24px;width:100%;max-width:420px;box-shadow:0 8px 32px rgba(0,0,0,.2);max-height:90vh;overflow-y:auto;position:relative}
 .modal-wide{max-width:560px}
+.modal-close-x{position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;line-height:1;color:var(--muted);cursor:pointer;padding:4px 8px;border-radius:6px}
+.modal-close-x:hover{background:#f0f2f5;color:var(--text)}
+.scroll-top-btn{position:sticky;bottom:12px;float:right;width:44px;height:44px;border-radius:50%;background:var(--primary);color:#fff;border:none;font-size:18px;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;margin-top:8px;margin-bottom:-8px;z-index:10}
+.scroll-top-btn:hover{background:var(--primary-light)}
 .modal h3{font-size:17px;color:var(--primary);margin-bottom:16px}
 .modal-label{font-size:13px;font-weight:600;color:var(--muted);display:block;margin-bottom:4px}
 .modal input[type=number],.modal input[type=text],.modal input[type=password],.modal input[type=date],.modal select{width:100%;padding:11px 12px;border:1.5px solid var(--border);border-radius:var(--radius);font-size:15px;margin-bottom:12px;font-family:inherit}
@@ -281,6 +285,7 @@ body{font-family:'Segoe UI','Microsoft JhengHei',sans-serif;background:var(--bg)
 <div class="overlay" id="ov_delPlate"><div class="modal"><h3>🗑️ 確認移除車牌</h3><p style="margin-bottom:16px;color:var(--muted);font-size:14px">確定要移除車牌 <strong id="delPlateName"></strong> 嗎？</p><input type="hidden" id="delPlateIdx"><div class="modal-btns"><button class="btn-mcancel" onclick="closeOv('ov_delPlate')">取消</button><button class="btn-mdanger" onclick="confirmDelPlate()">確認移除</button></div></div></div>
 
 <div class="overlay" id="ov_vehicle"><div class="modal modal-wide">
+  <button class="modal-close-x" onclick="closeOv('ov_vehicle')">✕</button>
   <h3>🚗 車輛使用歷史紀錄</h3>
   <select class="vh-select" id="vh_plate" onchange="renderVehicleHistory()"><option value="">── 請選擇車牌 ──</option></select>
   <div class="vh-tabs" id="vh_tabs" style="display:none">
@@ -681,12 +686,18 @@ function statusTag(s){
 }
 
 /* ── Cards ── */
+function hasLaterBooking(r){
+  var key=r.outDate+r.outTime;
+  return records.some(function(x){ return x.id!==r.id && matchPlate(x.plate,r.plate) && getStatus(x)!=='取消' && (x.outDate+x.outTime)>key; });
+}
+
 function buildCard(r,ctx){
   var st=getStatus(r),uid=r.id+'_'+ctx;
   var isCancelled=st==='取消';
   var isReturned=st==='已返回';
+  var isLocked=hasLaterBooking(r);
   var btns='<div class="detail-actions">';
-  if(!isCancelled) btns+='<button class="btn-sm btn-edit" '+(isReturned?'disabled':'')+' onclick="'+(isReturned?'':'openEdit(\''+r.id+'\')')+'">📝 補登返回資訊</button>';
+  if(!isCancelled) btns+='<button class="btn-sm btn-edit" '+(isLocked?'disabled':'')+' onclick="'+(isLocked?'':'openEdit(\''+r.id+'\')')+'">📝 補登返回資訊</button>';
   if(!isCancelled) btns+='<button class="btn-sm" style="background:var(--muted)" '+(isReturned?'disabled':'')+' onclick="'+(isReturned?'':'openCancel(\''+r.id+'\')')+'">🚫 取消</button>';
   if(isCancelled)  btns+='<span style="font-size:13px;color:var(--danger);font-weight:600">已取消：'+( r.cancelReason||'')+'</span>';
   if(isAdmin)      btns+='<button class="btn-sm btn-del" onclick="openDelete(\''+r.id+'\')">🗑️ 刪除</button>';
@@ -785,8 +796,13 @@ function renderVehicleHistory(){ var raw=document.getElementById('vh_plate').val
     ? visible.map(function(r){ return buildCard(r,'vh'); }).join('')
       + '<div style="text-align:center;font-size:12px;color:var(--muted);margin:8px 0">顯示 '+visible.length+' / '+list.length+' 筆</div>'
       + (hasMore ? '<button class="today-btn" style="width:100%;padding:12px" onclick="showMoreVh()">顯示更多（還有 '+(list.length-visible.length)+' 筆）</button>' : '')
+      + (visible.length>6 ? '<button class="scroll-top-btn" onclick="scrollVhTop()" title="回到頂部">▲</button><div style="clear:both"></div>' : '')
     : '<div class="empty-state" style="padding:20px"><span class="icon" style="font-size:28px">📭</span>此車牌尚無使用紀錄</div>';
   content.innerHTML=summary+listHtml; }
+function scrollVhTop(){
+  var modal=document.querySelector('#ov_vehicle .modal');
+  if(modal) modal.scrollTo({top:0, behavior:'smooth'});
+}
 
 /* ── Maintenance ── */
 function nextMaintDate(){ var d=new Date(); d.setMonth(d.getMonth()+6); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
