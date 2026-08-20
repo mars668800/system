@@ -703,9 +703,10 @@ function buildCard(r,ctx){
   var st=getStatus(r),uid=r.id+'_'+ctx;
   var isCancelled=st==='取消';
   var isReturned=st==='已返回';
+  var isEditLocked=isReturned && !isAdmin;
   var isCancelLocked=(isReturned||hasLaterBooking(r)) && !isAdmin;
   var btns='<div class="detail-actions">';
-  if(!isCancelled) btns+='<button class="btn-sm btn-edit" onclick="openEdit(\''+r.id+'\')">📝 補登返回資訊</button>';
+  if(!isCancelled) btns+='<button class="btn-sm btn-edit" '+(isEditLocked?'disabled':'')+' onclick="'+(isEditLocked?'':'openEdit(\''+r.id+'\')')+'">📝 補登返回資訊</button>';
   if(!isCancelled) btns+='<button class="btn-sm" style="background:var(--muted)" '+(isCancelLocked?'disabled':'')+' onclick="'+(isCancelLocked?'':'openCancel(\''+r.id+'\')')+'">🚫 取消</button>';
   if(isCancelled)  btns+='<span style="font-size:13px;color:var(--danger);font-weight:600">已取消：'+( r.cancelReason||'')+'</span>';
   if(isAdmin)      btns+='<button class="btn-sm btn-del" onclick="openDelete(\''+r.id+'\')">🗑️ 刪除</button>';
